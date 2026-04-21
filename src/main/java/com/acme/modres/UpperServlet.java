@@ -9,8 +9,13 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import com.ibm.websphere.servlet.response.ResponseUtils;
+import org.springframework.web.util.HtmlUtils;
 
+/**
+ * Servlet for converting input to uppercase.
+ * Updated to use Spring's HtmlUtils instead of WebSphere-specific ResponseUtils.
+ * This ensures cloud-native compatibility and removes vendor lock-in.
+ */
 @WebServlet("/resorts/upper")
 public class UpperServlet extends HttpServlet {
 
@@ -26,7 +31,8 @@ public class UpperServlet extends HttpServlet {
     }
 
     String newStr = originalStr.toUpperCase();
-    newStr = ResponseUtils.encodeDataString(newStr);
+    // Use Spring's HtmlUtils for HTML encoding instead of WebSphere-specific API
+    newStr = HtmlUtils.htmlEscape(newStr);
 
     PrintWriter out = response.getWriter();
     out.print("<br/><b>upper case input " + newStr + "</b>");

@@ -1,70 +1,70 @@
 package com.acme.modres.mbean;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 
 import com.acme.modres.mbean.reservation.ReservationList;
 import com.acme.modres.util.JsonInputStream;
 
+/**
+ * Utility class for I/O operations.
+ * Updated to use classpath resources instead of temporary file system writes.
+ * For cloud deployments, files should be stored in S3 or other cloud storage.
+ */
 public final class IOUtils {
 
-  public static File getFileFromRelativePath(String path) {
-    File file = null;
-    InputStream initialStream = null;
-    OutputStream outStream = null;
+  /**
+   * Get input stream from classpath resource.
+   * This avoids writing to ephemeral local file system in cloud environments.
+   * 
+   * @param path The resource path
+   * @return InputStream from the resource
+   */
+  public static InputStream getResourceAsStream(String path) {
     try {
-      initialStream = IOUtils.class.getClassLoader().getResourceAsStream(path);
-      byte[] buffer = new byte[initialStream.available()];
-      initialStream.read(buffer);
-
-      file = File.createTempFile(path, null);
-      outStream = new FileOutputStream(file);
-      outStream.write(buffer);
-      outStream.close();
+      InputStream stream = IOUtils.class.getClassLoader().getResourceAsStream(path);
+      if (stream == null) {
+        throw new RuntimeException("Resource not found: " + path);
+      }
+      return stream;
     } catch (Exception e) {
       e.printStackTrace();
-    } finally {
-      if (initialStream != null) {
-        try {
-          initialStream.close();
-        } catch (IOException e) {
-        }
-      } else if (outStream != null) {
-        try {
-          outStream.close();
-        } catch (IOException e) {
-        }
-      }
+      throw new RuntimeException("Failed to load resource: " + path, e);
     }
-
-    return file;
   }
 
+  /**
+   * Load operation metadata list from configuration.
+   * Uses classpath resources to avoid local file system dependencies.
+   * 
+   * @return OpMetadataList loaded from configuration
+   */
   public static OpMetadataList getOpListFromConfig() {
-    File file = getFileFromRelativePath("ops.json"); // fix hardcoded paths
-    try (JsonInputStream is = new JsonInputStream(file)) {
-      OpMetadataList opList = new OpMetadataList(); // empty default
+    try (InputStream stream = getResourceAsStream("ops.json");
+         JsonInputStream is = new JsonInputStream(stream)) {
+      OpMetadataList opList = new OpMetadataList();
       opList = (OpMetadataList) is.parseJsonAs(OpMetadataList.class);
       return opList;
-    } catch (IOException e) {
+    } catch (Exception e) {
       e.printStackTrace();
       return null;
     }
   }
 
+  /**
+   * Load reservation list from configuration.
+   * Uses classpath resources to avoid local file system dependencies.
+   * 
+   * @return ReservationList loaded from configuration
+   */
   public static ReservationList getReservationListFromConfig() {
-    File file = getFileFromRelativePath("reservations.json"); // fix hardcoded paths
-    try (JsonInputStream is = new JsonInputStream(file)) {
-      ReservationList reservationList = new ReservationList(); // empty default
+    try (InputStream stream = getResourceAsStream("reservations.json");
+         JsonInputStream is = new JsonInputStream(stream)) {
+      ReservationList reservationList = new ReservationList();
       reservationList = (ReservationList) is.parseJsonAs(ReservationList.class);
       return reservationList;
-    } catch (IOException e) {
+    } catch (Exception e) {
       e.printStackTrace();
       return null;
     }
   }
-
 }

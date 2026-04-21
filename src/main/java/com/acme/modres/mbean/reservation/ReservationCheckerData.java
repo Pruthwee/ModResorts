@@ -1,14 +1,21 @@
 package com.acme.modres.mbean.reservation;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 
 import com.acme.modres.Constants;
 
+/**
+ * Data holder for reservation checking.
+ * Updated to use java.time API instead of java.util.Date for cloud-native time handling.
+ */
 public class ReservationCheckerData {
   private ReservationList reservations;
-  private Date selectedDate;
-  private boolean available; // changed from Boolean to boolean
+  private LocalDate selectedDate;
+  private boolean available;
+  
+  private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern(Constants.DATA_FORMAT);
 
   public ReservationCheckerData(ReservationList reservations) {
     this.reservations = reservations;
@@ -19,14 +26,14 @@ public class ReservationCheckerData {
     return reservations;
   }
 
-  public Date getSelectedDate() {
+  public LocalDate getSelectedDate() {
     return selectedDate;
   }
 
   public boolean setSelectedDate(String dateStr) {
     try {
-      selectedDate = new SimpleDateFormat(Constants.DATA_FORMAT).parse(dateStr);
-    } catch (Exception e) {
+      selectedDate = LocalDate.parse(dateStr, DATE_FORMATTER);
+    } catch (DateTimeParseException e) {
       return false;
     }
     return true;
@@ -36,7 +43,7 @@ public class ReservationCheckerData {
     return available;
   }
 
-  public void setAvailablility(boolean available) { // fix parameter type
+  public void setAvailablility(boolean available) {
     this.available = available;
   }
 }
