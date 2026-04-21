@@ -1,31 +1,35 @@
 package com.acme.modres.util;
 
-import java.io.File;
 import java.io.IOException;
-import java.util.Enumeration;
+import java.io.InputStream;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipException;
-import java.util.zip.ZipFile;
+import java.util.zip.ZipInputStream;
 
-public class ZipValidator extends ZipFile {
+/**
+ * Cloud-ready ZipValidator that works with InputStreams instead of Files.
+ * This allows validation of zip data from any source (S3, memory, etc.)
+ * without requiring local file system access.
+ */
+public class ZipValidator {
 
-  public ZipValidator(File file) throws ZipException, IOException {
-    super(file);
-    this.file = file;
+  private InputStream inputStream;
+
+  public ZipValidator(InputStream inputStream) {
+    this.inputStream = inputStream;
   }
 
-  private File file;
-
   public boolean isValid() throws Throwable {
-    if (file.exists()) {
-      ZipValidator zipFile = new ZipValidator(file);
-      Enumeration<? extends ZipEntry> entries = zipFile.entries();
-      if (!entries.hasMoreElements()) {
-        return true;
-      }
-      zipFile.close();
+    if (inputStream == null) {
+      return false;
     }
-    return false;
+    
+    try (ZipInputStream zipInputStream = new ZipInputStream(inputStream)) {
+      ZipEntry entry = zipInputStream.getNextEntry();
+      // If we can read at least one entry, the zip is valid
+      return entry != null;
+    } catch (IOException e) {
+      return false;
+    }
   }
 
 }

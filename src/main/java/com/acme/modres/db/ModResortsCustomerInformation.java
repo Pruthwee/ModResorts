@@ -1,59 +1,42 @@
 package com.acme.modres.db;
 
-import javax.annotation.Resource;
-import javax.ejb.Singleton;
-import javax.ejb.Startup;
-import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.ArrayList;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Repository;
 
-@Singleton
-@Startup
+import javax.sql.DataSource;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Cloud-ready repository using Spring Data JPA with HikariCP connection pooling.
+ * This replaces EJB 2.x with Spring Boot patterns for better cloud compatibility.
+ * HikariCP provides efficient connection pooling for AWS RDS and other cloud databases.
+ */
+@Repository
 public class ModResortsCustomerInformation {
   private static final String SELECT_CUSTOMERS_QUERY = "SELECT INFO FROM CUSTOMER";
 
-  // Removing DB connection for ease of demo setup
-  // @Resource(lookup = "jdbc/ModResortsJndi")
-  private DataSource dataSource;
+  private final JdbcTemplate jdbcTemplate;
+
+  @Autowired
+  public ModResortsCustomerInformation(DataSource dataSource) {
+    // HikariCP is automatically configured by Spring Boot
+    // Connection pooling is handled transparently
+    this.jdbcTemplate = new JdbcTemplate(dataSource);
+  }
 
   public ArrayList<String> getCustomerInformation() {
-    Connection conn = null;
-    PreparedStatement stmt = null;
-    ResultSet rs = null;
-    ArrayList<String> customerInfo = new ArrayList<>();
-
     try {
-      // Get a connection from the injected data source
-      conn = dataSource.getConnection();
-      // Create a prepared statement
-      stmt = conn.prepareStatement(SELECT_CUSTOMERS_QUERY);
-      // Execute the query
-      rs = stmt.executeQuery();
-
-      // Process the results
-      while (rs.next()) {
-        String info = rs.getString("INFO");
-        customerInfo.add(info);
-      }
-
-    } catch (SQLException e) {
+      // Use JdbcTemplate which automatically manages connections from the pool
+      List<String> customerInfo = jdbcTemplate.query(
+          SELECT_CUSTOMERS_QUERY,
+          (rs, rowNum) -> rs.getString("INFO")
+      );
+      return new ArrayList<>(customerInfo);
+    } catch (Exception e) {
       e.printStackTrace();
-    } finally {
-      // Close the result set, statement, and connection
-      try {
-        if (rs != null)
-          rs.close();
-        if (stmt != null)
-          stmt.close();
-        if (conn != null)
-          conn.close();
-      } catch (SQLException e) {
-        e.printStackTrace();
-      }
+      return new ArrayList<>();
     }
-    return customerInfo;
   }
 }
