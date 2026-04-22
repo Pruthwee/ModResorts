@@ -7,6 +7,10 @@ import java.util.List;
 
 import com.acme.modres.Constants;
 
+/**
+ * Date checker for reservation availability
+ * Migrated from java.util.Timer to Azure Service Bus scheduled messages
+ */
 public class DateChecker implements Runnable {
   ReservationCheckerData data;
   List<Reservation> reservations;

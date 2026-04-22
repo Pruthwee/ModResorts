@@ -1,70 +1,99 @@
 package com.acme.modres.mbean;
 
-import java.io.File;
-import java.io.FileOutputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 
 import com.acme.modres.mbean.reservation.ReservationList;
+import com.acme.modres.service.AzureBlobStorageService;
 import com.acme.modres.util.JsonInputStream;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
+/**
+ * Cloud-native IO utilities using Azure Blob Storage
+ * Replaces local file system operations with Azure Blob Storage
+ */
+@Component
 public final class IOUtils {
 
-  public static File getFileFromRelativePath(String path) {
-    File file = null;
-    InputStream initialStream = null;
-    OutputStream outStream = null;
-    try {
-      initialStream = IOUtils.class.getClassLoader().getResourceAsStream(path);
-      byte[] buffer = new byte[initialStream.available()];
-      initialStream.read(buffer);
+  private static AzureBlobStorageService blobStorageService;
 
-      file = File.createTempFile(path, null);
-      outStream = new FileOutputStream(file);
-      outStream.write(buffer);
-      outStream.close();
-    } catch (Exception e) {
-      e.printStackTrace();
-    } finally {
-      if (initialStream != null) {
-        try {
-          initialStream.close();
-        } catch (IOException e) {
-        }
-      } else if (outStream != null) {
-        try {
-          outStream.close();
-        } catch (IOException e) {
-        }
+  @Autowired
+  public void setBlobStorageService(AzureBlobStorageService service) {
+    IOUtils.blobStorageService = service;
+  }
+
+  /**
+   * Get input stream from Azure Blob Storage or classpath resource
+   * @param path Resource path
+   * @return InputStream for the resource
+   */
+  public static InputStream getResourceInputStream(String path) throws IOException {
+    // First try to get from Azure Blob Storage
+    if (blobStorageService != null && blobStorageService.blobExists(path)) {
+      try {
+        return blobStorageService.getBlobInputStream(path);
+      } catch (IOException e) {
+        System.err.println("Failed to load from Azure Blob Storage, falling back to classpath: " + e.getMessage());
       }
     }
+    
+    // Fallback to classpath resource
+    InputStream stream = IOUtils.class.getClassLoader().getResourceAsStream(path);
+    if (stream == null) {
+      throw new IOException("Resource not found: " + path);
+    }
+    return stream;
+  }
 
-    return file;
+  /**
+   * Upload data to Azure Blob Storage
+   * @param blobName Name of the blob
+   * @param data Data to upload
+   */
+  public static void uploadToBlob(String blobName, byte[] data) throws IOException {
+    if (blobStorageService != null) {
+      blobStorageService.uploadBlob(blobName, data);
+    } else {
+      throw new IOException("Azure Blob Storage service not available");
+    }
+  }
+
+  /**
+   * Download data from Azure Blob Storage
+   * @param blobName Name of the blob
+   * @return Downloaded data
+   */
+  public static byte[] downloadFromBlob(String blobName) throws IOException {
+    if (blobStorageService != null) {
+      return blobStorageService.downloadBlob(blobName);
+    } else {
+      throw new IOException("Azure Blob Storage service not available");
+    }
   }
 
   public static OpMetadataList getOpListFromConfig() {
-    File file = getFileFromRelativePath("ops.json"); // fix hardcoded paths
-    try (JsonInputStream is = new JsonInputStream(file)) {
-      OpMetadataList opList = new OpMetadataList(); // empty default
-      opList = (OpMetadataList) is.parseJsonAs(OpMetadataList.class);
+    try (InputStream is = getResourceInputStream("ops.json")) {
+      JsonInputStream jsonStream = new JsonInputStream(is);
+      OpMetadataList opList = (OpMetadataList) jsonStream.parseJsonAs(OpMetadataList.class);
+      jsonStream.close();
       return opList;
     } catch (IOException e) {
       e.printStackTrace();
-      return null;
+      return new OpMetadataList(); // Return empty list as fallback
     }
   }
 
   public static ReservationList getReservationListFromConfig() {
-    File file = getFileFromRelativePath("reservations.json"); // fix hardcoded paths
-    try (JsonInputStream is = new JsonInputStream(file)) {
-      ReservationList reservationList = new ReservationList(); // empty default
-      reservationList = (ReservationList) is.parseJsonAs(ReservationList.class);
+    try (InputStream is = getResourceInputStream("reservations.json")) {
+      JsonInputStream jsonStream = new JsonInputStream(is);
+      ReservationList reservationList = (ReservationList) jsonStream.parseJsonAs(ReservationList.class);
+      jsonStream.close();
       return reservationList;
     } catch (IOException e) {
       e.printStackTrace();
-      return null;
+      return new ReservationList(); // Return empty list as fallback
     }
   }
-
 }
