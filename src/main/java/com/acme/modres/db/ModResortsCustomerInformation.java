@@ -1,37 +1,40 @@
 package com.acme.modres.db;
 
-import javax.annotation.Resource;
-import javax.ejb.Singleton;
-import javax.ejb.Startup;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.logging.Logger;
 
-@Singleton
-@Startup
+/**
+ * Migrated from EJB 2.x Singleton to Spring Service
+ * Uses HikariCP connection pooling (provided by Spring Boot)
+ */
+@Service
 public class ModResortsCustomerInformation {
+  private static final Logger logger = Logger.getLogger(ModResortsCustomerInformation.class.getName());
   private static final String SELECT_CUSTOMERS_QUERY = "SELECT INFO FROM CUSTOMER";
 
-  // Removing DB connection for ease of demo setup
-  // @Resource(lookup = "jdbc/ModResortsJndi")
+  @Autowired(required = false)
   private DataSource dataSource;
 
   public ArrayList<String> getCustomerInformation() {
-    Connection conn = null;
-    PreparedStatement stmt = null;
-    ResultSet rs = null;
     ArrayList<String> customerInfo = new ArrayList<>();
+    
+    if (dataSource == null) {
+      logger.warning("DataSource not configured. Returning empty customer information.");
+      return customerInfo;
+    }
 
-    try {
-      // Get a connection from the injected data source
-      conn = dataSource.getConnection();
-      // Create a prepared statement
-      stmt = conn.prepareStatement(SELECT_CUSTOMERS_QUERY);
-      // Execute the query
-      rs = stmt.executeQuery();
+    // Use try-with-resources for automatic resource management
+    try (Connection conn = dataSource.getConnection();
+         PreparedStatement stmt = conn.prepareStatement(SELECT_CUSTOMERS_QUERY);
+         ResultSet rs = stmt.executeQuery()) {
 
       // Process the results
       while (rs.next()) {
@@ -40,20 +43,10 @@ public class ModResortsCustomerInformation {
       }
 
     } catch (SQLException e) {
+      logger.severe("Database error: " + e.getMessage());
       e.printStackTrace();
-    } finally {
-      // Close the result set, statement, and connection
-      try {
-        if (rs != null)
-          rs.close();
-        if (stmt != null)
-          stmt.close();
-        if (conn != null)
-          conn.close();
-      } catch (SQLException e) {
-        e.printStackTrace();
-      }
     }
+    
     return customerInfo;
   }
 }
