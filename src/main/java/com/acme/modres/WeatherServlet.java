@@ -3,6 +3,7 @@ package com.acme.modres;
 import com.acme.modres.db.ModResortsCustomerInformation;
 import com.acme.modres.exception.ExceptionHandler;
 import com.acme.modres.mbean.AppInfo;
+import com.acme.modres.service.SecretManagerService;
 
 import java.io.BufferedReader;
 
@@ -13,7 +14,6 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URL;
-import java.util.Hashtable;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -35,9 +35,9 @@ import javax.management.NotCompliantMBeanException;
 import javax.management.ObjectInstance;
 import javax.management.ObjectName;
 import javax.management.ReflectionException;
-import javax.naming.InitialContext;
-import javax.naming.NamingException;
 import javax.servlet.annotation.WebServlet;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 
 @WebServlet({ "/resorts/weather" })
 public class WeatherServlet extends HttpServlet {
@@ -46,14 +46,19 @@ public class WeatherServlet extends HttpServlet {
   @Inject
   private ModResortsCustomerInformation customerInfo;
 
-  // local OS environment variable key name. The key value should provide an API
-  // key that will be used to
-  // get weather information from site: http://www.wunderground.com
-  private static final String WEATHER_API_KEY = "WEATHER_API_KEY";
+  @Autowired(required = false)
+  private SecretManagerService secretManagerService;
+
+  // Secret ID in Google Secret Manager
+  private static final String WEATHER_API_KEY_SECRET_ID = "weather-api-key";
+  
+  // Fallback to environment variable
+  private static final String WEATHER_API_KEY_ENV = "WEATHER_API_KEY";
+
+  @Value("${weather.api.key:#{null}}")
+  private String weatherApiKeyConfig;
 
   private static final Logger logger = Logger.getLogger(WeatherServlet.class.getName());
-
-  private static InitialContext context;
 
   MBeanServer server;
   ObjectName weatherON;
@@ -65,7 +70,6 @@ public class WeatherServlet extends HttpServlet {
     try {
       weatherON = new ObjectName("com.acme.modres.mbean:name=appInfo");
     } catch (MalformedObjectNameException e) {
-      // TODO Auto-generated catch block
       e.printStackTrace();
     }
     try {
@@ -75,7 +79,6 @@ public class WeatherServlet extends HttpServlet {
     } catch (InstanceAlreadyExistsException | MBeanRegistrationException | NotCompliantMBeanException e) {
       e.printStackTrace();
     }
-    context = setInitialContextProps();
   }
 
   @Override
@@ -84,7 +87,6 @@ public class WeatherServlet extends HttpServlet {
       try {
         server.unregisterMBean(weatherON);
       } catch (MBeanRegistrationException | InstanceNotFoundException e) {
-        // TODO Auto-generated catch block
         e.printStackTrace();
       }
     }
@@ -106,7 +108,8 @@ public class WeatherServlet extends HttpServlet {
     String city = request.getParameter("selectedCity");
     logger.log(Level.FINE, "requested city is " + city);
 
-    String weatherAPIKey = System.getenv(WEATHER_API_KEY);
+    // Get API key from Secret Manager, then environment variable, then config
+    String weatherAPIKey = getWeatherApiKey();
     String mockedKey = mockKey(weatherAPIKey);
     logger.log(Level.FINE, "weatherAPIKey is " + mockedKey);
 
@@ -118,6 +121,40 @@ public class WeatherServlet extends HttpServlet {
           "weatherAPIKey is not found, will provide the weather data dated August 10th, 2018 for the city " + city);
       getDefaultWeatherData(city, response);
     }
+  }
+
+  /**
+   * Get weather API key from Secret Manager, environment variable, or configuration
+   */
+  private String getWeatherApiKey() {
+    // Try Secret Manager first
+    if (secretManagerService != null) {
+      try {
+        String secretValue = secretManagerService.accessSecret(WEATHER_API_KEY_SECRET_ID);
+        if (secretValue != null && !secretValue.trim().isEmpty()) {
+          logger.info("Weather API key loaded from Secret Manager");
+          return secretValue;
+        }
+      } catch (Exception e) {
+        logger.warning("Could not load weather API key from Secret Manager: " + e.getMessage());
+      }
+    }
+
+    // Try environment variable
+    String envValue = System.getenv(WEATHER_API_KEY_ENV);
+    if (envValue != null && !envValue.trim().isEmpty()) {
+      logger.info("Weather API key loaded from environment variable");
+      return envValue;
+    }
+
+    // Try configuration property
+    if (weatherApiKeyConfig != null && !weatherApiKeyConfig.trim().isEmpty()) {
+      logger.info("Weather API key loaded from configuration");
+      return weatherApiKeyConfig;
+    }
+
+    logger.warning("Weather API key not found in Secret Manager, environment, or configuration");
+    return null;
   }
 
   private void getRealTimeWeatherData(String city, String apiKey, HttpServletResponse response)
@@ -166,11 +203,10 @@ public class WeatherServlet extends HttpServlet {
 
     if (responseCode >= 200 && responseCode < 300) {
 
-      BufferedReader in = null;
-      ServletOutputStream out = null;
-
-      try {
-        in = new BufferedReader(new InputStreamReader(con.getInputStream()));
+      // Use try-with-resources for proper resource management
+      try (BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
+           ServletOutputStream out = response.getOutputStream()) {
+        
         String inputLine = null;
         StringBuffer responseStr = new StringBuffer();
 
@@ -179,21 +215,11 @@ public class WeatherServlet extends HttpServlet {
         }
 
         response.setContentType("application/json");
-        out = response.getOutputStream();
         out.print(responseStr.toString());
         logger.log(Level.FINE, "responseStr: " + responseStr);
       } catch (Exception e) {
         String errorMsg = "Problem occured when processing the weather server response.";
         ExceptionHandler.handleException(e, errorMsg, logger);
-      } finally {
-        if (in != null) {
-          in.close();
-        }
-        if (out != null) {
-          out.close();
-        }
-        in = null;
-        out = null;
       }
     } else {
       String errorMsg = "REST API call " + resturl + " returns an error response: " + responseCode;
@@ -211,24 +237,15 @@ public class WeatherServlet extends HttpServlet {
       ExceptionHandler.handleException(e, e.getMessage(), logger);
     }
 
-    ServletOutputStream out = null;
-
-    try {
+    // Use try-with-resources for proper resource management
+    try (ServletOutputStream out = response.getOutputStream()) {
       String responseStr = defaultWeatherData.getDefaultWeatherData();
       response.setContentType("application/json");
-      out = response.getOutputStream();
       out.print(responseStr.toString());
       logger.log(Level.FINEST, "responseStr: " + responseStr);
     } catch (Exception e) {
       String errorMsg = "Problem occured when getting the default weather data.";
       ExceptionHandler.handleException(e, errorMsg, logger);
-    } finally {
-
-      if (out != null) {
-        out.close();
-      }
-
-      out = null;
     }
   }
 
@@ -247,32 +264,5 @@ public class WeatherServlet extends HttpServlet {
     }
     String lastToKeep = toBeMocked.substring(toBeMocked.length() - 3);
     return "*********" + lastToKeep;
-  }
-
-  private String configureEnvDiscovery() {
-
-    String serverEnv = "";
-
-    serverEnv += com.ibm.websphere.runtime.ServerName.getDisplayName();
-    serverEnv += com.ibm.websphere.runtime.ServerName.getFullName();
-
-    return serverEnv;
-  }
-
-  private InitialContext setInitialContextProps() {
-
-    Hashtable ht = new Hashtable();
-
-    ht.put("java.naming.factory.initial", "com.ibm.websphere.naming.WsnInitialContextFactory");
-    ht.put("java.naming.provider.url", "corbaloc:iiop:localhost:2809");
-
-    InitialContext ctx = null;
-    try {
-      ctx = new InitialContext(ht);
-    } catch (NamingException e) {
-      e.printStackTrace();
-    }
-
-    return ctx;
   }
 }

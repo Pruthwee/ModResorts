@@ -4,6 +4,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.TimeZone;
 
 import com.acme.modres.Constants;
 
@@ -22,8 +23,13 @@ public class DateChecker implements Runnable {
       Date selectedDate = data.getSelectedDate();
 
       try {
-        Date fromDate = new SimpleDateFormat(Constants.DATA_FORMAT).parse(reservation.getFromDate());
-        Date toDate = new SimpleDateFormat(Constants.DATA_FORMAT).parse(reservation.getToDate());
+        // Use UTC timezone for consistent date handling across cloud instances
+        SimpleDateFormat dateFormat = new SimpleDateFormat(Constants.DATA_FORMAT);
+        dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+        
+        Date fromDate = dateFormat.parse(reservation.getFromDate());
+        Date toDate = dateFormat.parse(reservation.getToDate());
+        
         if (selectedDate.after(fromDate) && selectedDate.before(toDate)) {
           data.setAvailablility(false);
           break;
