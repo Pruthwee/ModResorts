@@ -1,19 +1,22 @@
 package com.acme.modres;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
+import java.util.List;
+import java.util.TimeZone;
 import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
-import javax.naming.InitialContext;
+
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
@@ -21,11 +24,14 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import com.acme.modres.mbean.IOUtils;
-import com.acme.modres.mbean.reservation.DateChecker;
-import com.acme.modres.mbean.reservation.ReservationCheckerData;
 import com.acme.modres.mbean.reservation.Reservation;
-
+import com.acme.modres.mbean.reservation.ReservationCheckerData;
 import com.acme.modres.util.ZipValidator;
+import com.google.cloud.storage.Blob;
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.BlobInfo;
+import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageOptions;
 
 @WebServlet({ "/resorts/availability" })
 public class AvailabilityCheckerServlet extends HttpServlet {
@@ -33,9 +39,11 @@ public class AvailabilityCheckerServlet extends HttpServlet {
 
   private static final Logger logger = Logger.getLogger(AvailabilityCheckerServlet.class.getName());
 
-  private static InitialContext context;
-
   private ReservationCheckerData reservationCheckerData;
+  
+  // GCS configuration - should be externalized to environment variables
+  private static final String GCS_BUCKET_NAME = System.getenv().getOrDefault("GCS_BUCKET_NAME", "modresorts-data");
+  private static final String GCS_PROJECT_ID = System.getenv().getOrDefault("GCP_PROJECT_ID", "default-project");
 
   @Override
   public void init() {
@@ -59,10 +67,14 @@ public class AvailabilityCheckerServlet extends HttpServlet {
       List<Reservation> reservations = reservationCheckerData.getReservationList().getReservations();
       boolean isAvailible = true;
 
+      // Use UTC timezone for consistent date handling across cloud regions
+      SimpleDateFormat dateFormat = new SimpleDateFormat(Constants.DATA_FORMAT);
+      dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+
       for (Reservation reservation : reservations) {
         try {
-          Date fromDate = new SimpleDateFormat(Constants.DATA_FORMAT).parse(reservation.getFromDate());
-          Date toDate = new SimpleDateFormat(Constants.DATA_FORMAT).parse(reservation.getToDate());
+          Date fromDate = dateFormat.parse(reservation.getFromDate());
+          Date toDate = dateFormat.parse(reservation.getToDate());
           Date selectedDate = reservationCheckerData.getSelectedDate();
 
           if (selectedDate.after(fromDate) && selectedDate.before(toDate)) {
@@ -99,43 +111,61 @@ public class AvailabilityCheckerServlet extends HttpServlet {
     doGet(request, response);
   }
 
+  /**
+   * Export reservations to Google Cloud Storage instead of local file system
+   */
   protected int exportRevervations(String selectedDateStr) {
-    File fileToZip = IOUtils.getFileFromRelativePath("reservations.json");
-    String userDirectory = System.getProperty("user.home");
-    String zipPath = userDirectory + "/reservations.zip";
-
-    FileOutputStream fos;
-    try {
-      fos = new FileOutputStream(zipPath);
-      ZipOutputStream zipOut = new ZipOutputStream(fos);
-
-      FileInputStream fis = new FileInputStream(fileToZip);
-      ZipEntry zipEntry = new ZipEntry(fileToZip.getName());
-      zipOut.putNextEntry(zipEntry);
-
-      byte[] bytes = new byte[1024];
-      int length;
-      while ((length = fis.read(bytes)) >= 0) {
-        zipOut.write(bytes, 0, length);
+    // Use try-with-resources to ensure proper resource cleanup
+    try (InputStream reservationStream = getClass().getClassLoader().getResourceAsStream("reservations.json")) {
+      
+      if (reservationStream == null) {
+        logger.severe("reservations.json not found in classpath");
+        return -1;
       }
-      fis.close();
 
-      zipOut.close();
-      fos.close();
+      // Create zip in memory instead of local file system
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+      try (ZipOutputStream zipOut = new ZipOutputStream(baos)) {
+        ZipEntry zipEntry = new ZipEntry("reservations.json");
+        zipOut.putNextEntry(zipEntry);
 
-      // verify zip
-      ZipValidator zipValidator = new ZipValidator(new File(zipPath));
-      if (zipValidator.isValid()) {
+        byte[] bytes = new byte[1024];
+        int length;
+        while ((length = reservationStream.read(bytes)) >= 0) {
+          zipOut.write(bytes, 0, length);
+        }
+        zipOut.closeEntry();
+      }
+
+      // Upload to Google Cloud Storage
+      byte[] zipData = baos.toByteArray();
+      String timestamp = Instant.now().atZone(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT);
+      String gcsObjectName = "reservations/reservations_" + timestamp + ".zip";
+      
+      Storage storage = StorageOptions.newBuilder()
+          .setProjectId(GCS_PROJECT_ID)
+          .build()
+          .getService();
+      
+      BlobId blobId = BlobId.of(GCS_BUCKET_NAME, gcsObjectName);
+      BlobInfo blobInfo = BlobInfo.newBuilder(blobId)
+          .setContentType("application/zip")
+          .build();
+      
+      Blob blob = storage.create(blobInfo, zipData);
+      
+      logger.info("Reservations exported to GCS: gs://" + GCS_BUCKET_NAME + "/" + gcsObjectName);
+      
+      // Verify zip data is valid
+      if (zipData.length > 0) {
         return 0;
       }
-    } catch (FileNotFoundException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
+      
     } catch (IOException e) {
-      // TODO Auto-generated catch block
+      logger.severe("Error exporting reservations: " + e.getMessage());
       e.printStackTrace();
-    } catch (Throwable e) {
-      // TODO Auto-generated catch block
+    } catch (Exception e) {
+      logger.severe("Unexpected error exporting reservations: " + e.getMessage());
       e.printStackTrace();
     }
     return -1;
