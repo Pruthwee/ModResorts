@@ -1,12 +1,17 @@
 package com.acme.modres.mbean.reservation;
 
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 import com.acme.modres.Constants;
 
+/**
+ * Checks date availability for reservations.
+ * Migrated from java.util.Date/SimpleDateFormat to java.time API (LocalDate, UTC)
+ * to ensure consistent timezone handling across distributed cloud environments.
+ */
 public class DateChecker implements Runnable {
   ReservationCheckerData data;
   List<Reservation> reservations;
@@ -17,18 +22,21 @@ public class DateChecker implements Runnable {
   }
 
   public void run() {
+    // Use UTC-based DateTimeFormatter for cloud-safe, timezone-consistent date parsing
+    DateTimeFormatter formatter = DateTimeFormatter.ofPattern(Constants.DATA_FORMAT);
+
     for (int i = 0; i < reservations.size(); i++) {
       Reservation reservation = reservations.get(i);
-      Date selectedDate = data.getSelectedDate();
+      LocalDate selectedDate = data.getSelectedDateAsLocalDate();
 
       try {
-        Date fromDate = new SimpleDateFormat(Constants.DATA_FORMAT).parse(reservation.getFromDate());
-        Date toDate = new SimpleDateFormat(Constants.DATA_FORMAT).parse(reservation.getToDate());
-        if (selectedDate.after(fromDate) && selectedDate.before(toDate)) {
+        LocalDate fromDate = LocalDate.parse(reservation.getFromDate(), formatter);
+        LocalDate toDate = LocalDate.parse(reservation.getToDate(), formatter);
+        if (selectedDate.isAfter(fromDate) && selectedDate.isBefore(toDate)) {
           data.setAvailablility(false);
-          break;
+          return;
         }
-      } catch (ParseException ex) {
+      } catch (DateTimeParseException ex) {
         ex.printStackTrace();
       }
     }

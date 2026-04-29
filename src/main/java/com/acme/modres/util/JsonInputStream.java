@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 
 import com.google.gson.Gson;
@@ -19,7 +20,7 @@ public class JsonInputStream extends FileInputStream {
   }
 
   public Object parseJsonAs(Class<?> cls) {
-    if (file.exists()) {
+    if (file != null && file.exists()) {
       JsonInputStream is = null;
       Object jsonObject = null;
       try {
@@ -46,6 +47,23 @@ public class JsonInputStream extends FileInputStream {
       }
     }
     return null;
+  }
+
+  /**
+   * Parses JSON from an arbitrary InputStream (e.g., classpath resource or S3 stream).
+   * This avoids writing to a local temp file, enabling cloud-native resource loading.
+   */
+  public static Object parseJsonFromStream(InputStream inputStream, Class<?> cls) {
+    if (inputStream == null) {
+      return null;
+    }
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+      Gson gson = new Gson();
+      return gson.fromJson(reader, cls);
+    } catch (Exception e) {
+      e.printStackTrace();
+      return null;
+    }
   }
 
 }
