@@ -1,11 +1,5 @@
-package com.acme.modres;
-
-import com.acme.modres.db.ModResortsCustomerInformation;
-import com.acme.modres.exception.ExceptionHandler;
-import com.acme.modres.mbean.AppInfo;
-
-import java.io.BufferedReader;
-
+import com.azure.identity.DefaultAzureCredentialBuilder;
+import com.azure.security.keyvault.secrets.SecretClient;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.management.ManagementFactory;
@@ -21,71 +15,39 @@ import javax.servlet.ServletException;
 import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
-import javax.inject.Inject;
-import javax.management.InstanceAlreadyExistsException;
-import javax.management.InstanceNotFoundException;
-import javax.management.IntrospectionException;
-import javax.management.MBeanInfo;
 import javax.management.MBeanRegistrationException;
 import javax.management.MBeanServer;
 import javax.management.MalformedObjectNameException;
 import javax.management.NotCompliantMBeanException;
 import javax.management.ObjectInstance;
-import javax.management.ObjectName;
-import javax.management.ReflectionException;
-import javax.naming.InitialContext;
-import javax.naming.NamingException;
-import javax.servlet.annotation.WebServlet;
+import com.azure.security.keyvault.secrets.SecretClientBuilder;
 
 @WebServlet({ "/resorts/weather" })
-public class WeatherServlet extends HttpServlet {
-  private static final long serialVersionUID = 1L;
-
-  @Inject
-  private ModResortsCustomerInformation customerInfo;
-
-  // local OS environment variable key name. The key value should provide an API
-  // key that will be used to
-  // get weather information from site: http://www.wunderground.com
-  private static final String WEATHER_API_KEY = "WEATHER_API_KEY";
 
   private static final Logger logger = Logger.getLogger(WeatherServlet.class.getName());
 
-  private static InitialContext context;
 
-  MBeanServer server;
-  ObjectName weatherON;
-  ObjectInstance mbean;
-
+  private transient SecretClient secretClient;
   @Override
-  public void init() {
-    server = ManagementFactory.getPlatformMBeanServer();
+  }
     try {
-      weatherON = new ObjectName("com.acme.modres.mbean:name=appInfo");
-    } catch (MalformedObjectNameException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
-    try {
-      if (weatherON != null) {
+      if (weatherON != null && !server.isRegistered(weatherON)) {
         mbean = server.registerMBean(new AppInfo(), weatherON);
       }
-    } catch (InstanceAlreadyExistsException | MBeanRegistrationException | NotCompliantMBeanException e) {
+    } catch (MBeanRegistrationException | NotCompliantMBeanException e) {
       e.printStackTrace();
+    } catch (InstanceAlreadyExistsException e) {
+      // ignore if already registered
     }
-    context = setInitialContextProps();
-  }
 
-  @Override
-  public void destroy() {
-    if (mbean != null) {
-      try {
-        server.unregisterMBean(weatherON);
-      } catch (MBeanRegistrationException | InstanceNotFoundException e) {
-        // TODO Auto-generated catch block
-        e.printStackTrace();
+    // Initialize Azure Key Vault SecretClient using Managed Identity / DefaultAzureCredential
+    String keyVaultUrl = System.getenv("KEY_VAULT_URL");
+    if (keyVaultUrl != null && !keyVaultUrl.isEmpty()) {
+      this.secretClient = new SecretClientBuilder()
+          .vaultUrl(keyVaultUrl)
+          .credential(new DefaultAzureCredentialBuilder().build())
+          .buildClient();
+    }
       }
     }
   }
@@ -109,13 +71,18 @@ public class WeatherServlet extends HttpServlet {
     String weatherAPIKey = System.getenv(WEATHER_API_KEY);
     String mockedKey = mockKey(weatherAPIKey);
     logger.log(Level.FINE, "weatherAPIKey is " + mockedKey);
-
-    if (weatherAPIKey != null && weatherAPIKey.trim().length() > 0) {
-      logger.info("weatherAPIKey is found, system will provide the real time weather data for the city " + city);
-      getRealTimeWeatherData(city, weatherAPIKey, response);
-    } else {
-      logger.info(
-          "weatherAPIKey is not found, will provide the weather data dated August 10th, 2018 for the city " + city);
+    String weatherAPIKey = null;
+    // Prefer Azure Key Vault if configured
+    if (secretClient != null) {
+      try {
+        weatherAPIKey = secretClient.getSecret(WEATHER_API_KEY).getValue();
+      } catch (Exception ex) {
+        logger.log(Level.WARNING, "Unable to retrieve WEATHER_API_KEY from Key Vault, falling back to environment variable", ex);
+      }
+    }
+    if (weatherAPIKey == null || weatherAPIKey.trim().isEmpty()) {
+      weatherAPIKey = System.getenv(WEATHER_API_KEY);
+    }
       getDefaultWeatherData(city, response);
     }
   }
@@ -188,29 +155,19 @@ public class WeatherServlet extends HttpServlet {
       } finally {
         if (in != null) {
           in.close();
-        }
-        if (out != null) {
-          out.close();
-        }
-        in = null;
-        out = null;
-      }
+    serverEnv += System.getenv().toString();
     } else {
       String errorMsg = "REST API call " + resturl + " returns an error response: " + responseCode;
       ExceptionHandler.handleException(null, errorMsg, logger);
     }
   }
-
-  private void getDefaultWeatherData(String city, HttpServletResponse response)
-      throws ServletException, IOException {
-    DefaultWeatherData defaultWeatherData = null;
-
+    // In cloud-native deployments, JNDI InitialContext is typically obtained with default settings
     try {
-      defaultWeatherData = new DefaultWeatherData(city);
-    } catch (UnsupportedOperationException e) {
-      ExceptionHandler.handleException(e, e.getMessage(), logger);
+      return new InitialContext();
+    } catch (NamingException e) {
+      e.printStackTrace();
+      return null;
     }
-
     ServletOutputStream out = null;
 
     try {
