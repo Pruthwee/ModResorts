@@ -1,18 +1,42 @@
-package com.acme.modres.db;
-
-import javax.annotation.Resource;
-import javax.ejb.Singleton;
-import javax.ejb.Startup;
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.ArrayList;
+  private final DataSource dataSource;
 
-@Singleton
-@Startup
-public class ModResortsCustomerInformation {
+  public ModResortsCustomerInformation(DataSource dataSource) {
+    this.dataSource = dataSource;
+  }
+    ArrayList<String> customerInfo = new ArrayList<>();
+
+    try (Connection conn = dataSource.getConnection();
+         PreparedStatement stmt = conn.prepareStatement(SELECT_CUSTOMERS_QUERY);
+         ResultSet rs = stmt.executeQuery()) {
+
+      while (rs.next()) {
+        String info = rs.getString("INFO");
+        customerInfo.add(info);
+      }
+
+    } catch (SQLException e) {
+      e.printStackTrace();
+    }
+    return customerInfo;
+      }
+
+    } catch (SQLException e) {
+      e.printStackTrace();
+    }
+    return customerInfo;
+      }
+
+    } catch (SQLException e) {
+      e.printStackTrace();
+    }
+    return customerInfo;
+      }
+
+    } catch (SQLException e) {
+      e.printStackTrace();
+    }
+    return customerInfo;
   private static final String SELECT_CUSTOMERS_QUERY = "SELECT INFO FROM CUSTOMER";
 
   // Removing DB connection for ease of demo setup

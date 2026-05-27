@@ -1,28 +1,8 @@
-package com.acme.modres.mbean;
-
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-
-import com.acme.modres.mbean.reservation.ReservationList;
-import com.acme.modres.util.JsonInputStream;
-
-public final class IOUtils {
-
-  public static File getFileFromRelativePath(String path) {
-    File file = null;
-    InputStream initialStream = null;
-    OutputStream outStream = null;
-    try {
-      initialStream = IOUtils.class.getClassLoader().getResourceAsStream(path);
-      byte[] buffer = new byte[initialStream.available()];
-      initialStream.read(buffer);
-
-      file = File.createTempFile(path, null);
-      outStream = new FileOutputStream(file);
-      outStream.write(buffer);
+  private IOUtils() {}
+    try (InputStream resourceStream = IOUtils.class.getClassLoader().getResourceAsStream("ops.json");
+         JsonInputStream is = new JsonInputStream(resourceStream)) {
+    try (InputStream resourceStream = IOUtils.class.getClassLoader().getResourceAsStream("reservations.json");
+         JsonInputStream is = new JsonInputStream(resourceStream)) {
       outStream.close();
     } catch (Exception e) {
       e.printStackTrace();

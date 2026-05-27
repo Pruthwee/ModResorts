@@ -1,9 +1,57 @@
-package com.acme.modres;
-
-import com.acme.modres.db.ModResortsCustomerInformation;
-import com.acme.modres.exception.ExceptionHandler;
-import com.acme.modres.mbean.AppInfo;
-
+import com.azure.identity.DefaultAzureCredentialBuilder;
+  // Secret name in Azure Key Vault that stores the weather API key
+  private static final String WEATHER_API_SECRET_NAME = "WeatherApiKey";
+    String weatherAPIKey = System.getenv("WEATHER_API_KEY");
+    // In cloud environments, avoid relying on application server specific APIs.
+    // Environment discovery should be implemented using standard Java or
+    // cloud-native mechanisms. This method is retained for backward
+    // compatibility but no longer uses WebSphere-specific classes.
+    return "";
+    // In Azure deployments, JNDI with WebSphere-specific factories is not
+    // applicable. This method is retained for compatibility but returns a
+    // default InitialContext using the environment configuration.
+    try {
+      return new InitialContext();
+    } catch (NamingException e) {
+      e.printStackTrace();
+      return null;
+    }
+    // cloud-native mechanisms. This method is retained for backward
+    // compatibility but no longer uses WebSphere-specific classes.
+    return "";
+    // In Azure deployments, JNDI with WebSphere-specific factories is not
+    // applicable. This method is retained for compatibility but returns a
+    // default InitialContext using the environment configuration.
+    try {
+      return new InitialContext();
+    } catch (NamingException e) {
+      e.printStackTrace();
+      return null;
+    }
+    // cloud-native mechanisms. This method is retained for backward
+    // compatibility but no longer uses WebSphere-specific classes.
+    return "";
+    // In Azure deployments, JNDI with WebSphere-specific factories is not
+    // applicable. This method is retained for compatibility but returns a
+    // default InitialContext using the environment configuration.
+    try {
+      return new InitialContext();
+    } catch (NamingException e) {
+      e.printStackTrace();
+      return null;
+    }
+    // cloud-native mechanisms. This method is retained for backward
+    // compatibility but no longer uses WebSphere-specific classes.
+    return "";
+    // In Azure deployments, JNDI with WebSphere-specific factories is not
+    // applicable. This method is retained for compatibility but returns a
+    // default InitialContext using the environment configuration.
+    try {
+      return new InitialContext();
+    } catch (NamingException e) {
+      e.printStackTrace();
+      return null;
+    }
 import java.io.BufferedReader;
 
 import java.io.IOException;

@@ -1,28 +1,10 @@
-package com.acme.modres;
-
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.logging.Logger;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
-import javax.naming.InitialContext;
-import javax.servlet.ServletException;
-import javax.servlet.annotation.WebServlet;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import com.acme.modres.mbean.IOUtils;
-import com.acme.modres.mbean.reservation.DateChecker;
-import com.acme.modres.mbean.reservation.ReservationCheckerData;
+    // In cloud environments, avoid writing to the local file system. This method
+    // should be refactored to export reservations to Azure Blob Storage using the
+    // Azure SDK for Java. For now, we return a non-zero status to indicate that
+    // local file-based export is not supported in cloud deployments.
+    logger.warning("exportRevervations is not supported in cloud deployments. Please use Azure Blob Storage export.");
+    return 1;
 import com.acme.modres.mbean.reservation.Reservation;
 
 import com.acme.modres.util.ZipValidator;

@@ -1,12 +1,40 @@
 package com.acme.modres.mbean.reservation;
 
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
+import java.util.concurrent.CompletableFuture;
+    CompletableFuture.runAsync(() -> {
+      boolean available = true;
+      for (int i = 0; i < reservations.size(); i++) {
+        Reservation reservation = reservations.get(i);
+        Date selectedDate = data.getSelectedDate();
 
-import com.acme.modres.Constants;
+        try {
+          Date fromDate = new SimpleDateFormat(Constants.DATA_FORMAT).parse(reservation.getFromDate());
+          Date toDate = new SimpleDateFormat(Constants.DATA_FORMAT).parse(reservation.getToDate());
+          if (selectedDate.after(fromDate) && selectedDate.before(toDate)) {
+            available = false;
+            break;
+          }
+        } catch (ParseException ex) {
+          ex.printStackTrace();
+        }
+      }
+      data.setAvailablility(available);
+    });
 
+        try {
+          Date fromDate = new SimpleDateFormat(Constants.DATA_FORMAT).parse(reservation.getFromDate());
+          Date toDate = new SimpleDateFormat(Constants.DATA_FORMAT).parse(reservation.getToDate());
+          if (selectedDate.after(fromDate) && selectedDate.before(toDate)) {
+            available = false;
+            break;
+          }
+        } catch (ParseException ex) {
+          ex.printStackTrace();
+        }
+      }
+      data.setAvailablility(available);
+    });
 public class DateChecker implements Runnable {
   ReservationCheckerData data;
   List<Reservation> reservations;
