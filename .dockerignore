@@ -1,0 +1,28 @@
+# Build output
+/target
+/build
+/out
+
+# VCS
+.git
+.gitignore
+
+# IDEs and editors
+.idea
+.vscode
+*.iml
+
+# Documentation
+*.md
+
+# Maven/Gradle wrappers (must NOT be copied into images)
+mvnw
+mvnw.cmd
+.mvn/
+gradlew
+gradlew.bat
+gradle/wrapper/
+
+# OS / misc
+.DS_Store
+Thumbs.db

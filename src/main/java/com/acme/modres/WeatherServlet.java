@@ -16,30 +16,9 @@ import java.net.URL;
 import java.util.Hashtable;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import javax.servlet.ServletException;
-import javax.servlet.ServletOutputStream;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import javax.inject.Inject;
-import javax.management.InstanceAlreadyExistsException;
-import javax.management.InstanceNotFoundException;
-import javax.management.IntrospectionException;
-import javax.management.MBeanInfo;
-import javax.management.MBeanRegistrationException;
-import javax.management.MBeanServer;
-import javax.management.MalformedObjectNameException;
 import javax.management.NotCompliantMBeanException;
-import javax.management.ObjectInstance;
-import javax.management.ObjectName;
-import javax.management.ReflectionException;
-import javax.naming.InitialContext;
-import javax.naming.NamingException;
 import javax.servlet.annotation.WebServlet;
-
-@WebServlet({ "/resorts/weather" })
 public class WeatherServlet extends HttpServlet {
   private static final long serialVersionUID = 1L;
 
@@ -129,26 +108,13 @@ public class WeatherServlet extends HttpServlet {
       resturl = resturlbase + "France/Paris.json";
     } else if (Constants.LAS_VEGAS.equals(city)) {
       resturl = resturlbase + "NV/Las_Vegas.json";
-    } else if (Constants.SAN_FRANCISCO.equals(city)) {
-      resturl = resturlbase + "/CA/San_Francisco.json";
-    } else if (Constants.MIAMI.equals(city)) {
-      resturl = resturlbase + "FL/Miami.json";
-    } else if (Constants.CORK.equals(city)) {
-      resturl = resturlbase + "ireland/cork.json";
-    } else if (Constants.BARCELONA.equals(city)) {
+    serverEnv += System.getenv().getOrDefault("SERVER_DISPLAY_NAME", "");
+    serverEnv += System.getenv().getOrDefault("SERVER_FULL_NAME", "");
       resturl = resturlbase + "Spain/Barcelona.json";
     } else {
       String errorMsg = "Sorry, the weather information for your selected city: " + city +
-          " is not available.  Valid selections are: " + Constants.SUPPORTED_CITIES;
-      ExceptionHandler.handleException(null, errorMsg, logger);
-    }
-
-    URL obj = null;
-    HttpURLConnection con = null;
-    try {
-      obj = new URL(resturl);
-      con = (HttpURLConnection) obj.openConnection();
-      con.setRequestMethod("GET");
+    ht.put("java.naming.factory.initial", System.getenv().getOrDefault("JAVA_NAMING_FACTORY_INITIAL", ""));
+    ht.put("java.naming.provider.url", System.getenv().getOrDefault("JAVA_NAMING_PROVIDER_URL", ""));
     } catch (MalformedURLException e1) {
       String errorMsg = "Caught MalformedURLException. Please make sure the url is correct.";
       ExceptionHandler.handleException(e1, errorMsg, logger);
@@ -156,10 +122,6 @@ public class WeatherServlet extends HttpServlet {
       String errorMsg = "Caught ProtocolException: " + e2.getMessage()
           + ". Not able to set request method to http connection.";
       ExceptionHandler.handleException(e2, errorMsg, logger);
-    } catch (IOException e3) {
-      String errorMsg = "Caught IOException: " + e3.getMessage() + ". Not able to open connection.";
-      ExceptionHandler.handleException(e3, errorMsg, logger);
-    }
 
     int responseCode = con.getResponseCode();
     logger.log(Level.FINEST, "Response Code: " + responseCode);
