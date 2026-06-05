@@ -253,8 +253,12 @@ public class WeatherServlet extends HttpServlet {
     
     try {
       // WebSphere-specific code - will only work if WebSphere runtime is available
-      serverEnv += com.ibm.websphere.runtime.ServerName.getDisplayName();
-      serverEnv += com.ibm.websphere.runtime.ServerName.getFullName();
+      Class<?> serverNameClass = Class.forName("com.ibm.websphere.runtime.ServerName");
+      java.lang.reflect.Method getDisplayNameMethod = serverNameClass.getMethod("getDisplayName");
+      serverEnv += (String) getDisplayNameMethod.invoke(null);
+      
+      java.lang.reflect.Method getFullNameMethod = serverNameClass.getMethod("getFullName");
+      serverEnv += (String) getFullNameMethod.invoke(null);
     } catch (NoClassDefFoundError | Exception e) {
       // WebSphere runtime not available - this is expected in non-WebSphere environments
       logger.log(Level.FINE, "WebSphere runtime not available, skipping environment discovery");
