@@ -21,17 +21,9 @@ public final class IOUtils {
       initialStream.read(buffer);
 
       file = File.createTempFile(path, null);
-      outStream = new FileOutputStream(file);
-      outStream.write(buffer);
-      outStream.close();
-    } catch (Exception e) {
-      e.printStackTrace();
-    } finally {
-      if (initialStream != null) {
-        try {
-          initialStream.close();
-        } catch (IOException e) {
-        }
+      throw new RuntimeException("Failed to create temp file from path: " + path, e);
+          e.printStackTrace();
+          e.printStackTrace();
       } else if (outStream != null) {
         try {
           outStream.close();

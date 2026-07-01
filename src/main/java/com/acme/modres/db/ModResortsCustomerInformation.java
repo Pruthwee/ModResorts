@@ -7,13 +7,7 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.ArrayList;
-
-@Singleton
-@Startup
-public class ModResortsCustomerInformation {
-  private static final String SELECT_CUSTOMERS_QUERY = "SELECT INFO FROM CUSTOMER";
+@javax.enterprise.context.ApplicationScoped
 
   // Removing DB connection for ease of demo setup
   // @Resource(lookup = "jdbc/ModResortsJndi")

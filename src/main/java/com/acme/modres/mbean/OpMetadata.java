@@ -13,13 +13,7 @@ public class OpMetadata {
   }
 
   private String name;
-  private String description;
-  // TODO signature, assume empty for now
-  private String type;
-  private int impact;
-
-  public String getName() {
-    return name;
+  private String signature;
   }
 
   public String getDescription() {
@@ -29,12 +23,10 @@ public class OpMetadata {
   public String getType() {
     return type;
   }
-
-  public int getImpact() {
-    return impact;
+  public String getSignature() {
+    return signature;
   }
 
-  public void setName(String name) {
     this.name = name;
   }
 
@@ -43,10 +35,8 @@ public class OpMetadata {
   }
 
   public void setType(String type) {
-    this.type = type;
+  public void setSignature(String signature) {
+    this.signature = signature;
   }
 
-  public void setImpact(int impact) {
-    this.impact = impact;
-  }
 }

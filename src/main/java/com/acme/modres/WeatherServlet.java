@@ -218,17 +218,6 @@ public class WeatherServlet extends HttpServlet {
       response.setContentType("application/json");
       out = response.getOutputStream();
       out.print(responseStr.toString());
-      logger.log(Level.FINEST, "responseStr: " + responseStr);
-    } catch (Exception e) {
-      String errorMsg = "Problem occured when getting the default weather data.";
-      ExceptionHandler.handleException(e, errorMsg, logger);
-    } finally {
-
-      if (out != null) {
-        out.close();
-      }
-
-      out = null;
     }
   }
 
@@ -250,27 +239,9 @@ public class WeatherServlet extends HttpServlet {
   }
 
   private String configureEnvDiscovery() {
-
-    String serverEnv = "";
-
-    serverEnv += com.ibm.websphere.runtime.ServerName.getDisplayName();
-    serverEnv += com.ibm.websphere.runtime.ServerName.getFullName();
-
-    return serverEnv;
-  }
-
-  private InitialContext setInitialContextProps() {
-
-    Hashtable ht = new Hashtable();
-
-    ht.put("java.naming.factory.initial", "com.ibm.websphere.naming.WsnInitialContextFactory");
-    ht.put("java.naming.provider.url", "corbaloc:iiop:localhost:2809");
-
-    InitialContext ctx = null;
-    try {
-      ctx = new InitialContext(ht);
-    } catch (NamingException e) {
-      e.printStackTrace();
+    return System.getenv("SERVER_NAME") + System.getenv("SERVER_FULL_NAME");
+    ht.put("java.naming.factory.initial", System.getenv("JNDI_FACTORY"));
+    ht.put("java.naming.provider.url", System.getenv("JNDI_URL"));
     }
 
     return ctx;
