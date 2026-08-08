@@ -1,11 +1,10 @@
 package com.acme.modres;
 
-import com.acme.modres.db.ModResortsCustomerInformation;
+import com.acme.modres.db.CustomerInformationService;
 import com.acme.modres.exception.ExceptionHandler;
 import com.acme.modres.mbean.AppInfo;
-
+import com.acme.modres.security.AzureKeyVaultSecretProvider;
 import java.io.BufferedReader;
-
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.management.ManagementFactory;
@@ -13,16 +12,8 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URL;
-import java.util.Hashtable;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import javax.servlet.ServletException;
-import javax.servlet.ServletOutputStream;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import javax.inject.Inject;
 import javax.management.InstanceAlreadyExistsException;
 import javax.management.InstanceNotFoundException;
@@ -35,26 +26,23 @@ import javax.management.NotCompliantMBeanException;
 import javax.management.ObjectInstance;
 import javax.management.ObjectName;
 import javax.management.ReflectionException;
-import javax.naming.InitialContext;
-import javax.naming.NamingException;
+import javax.servlet.ServletException;
+import javax.servlet.ServletOutputStream;
 import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 @WebServlet({ "/resorts/weather" })
 public class WeatherServlet extends HttpServlet {
   private static final long serialVersionUID = 1L;
-
-  @Inject
-  private ModResortsCustomerInformation customerInfo;
-
-  // local OS environment variable key name. The key value should provide an API
-  // key that will be used to
-  // get weather information from site: http://www.wunderground.com
-  private static final String WEATHER_API_KEY = "WEATHER_API_KEY";
-
+  private static final String WEATHER_API_KEY_SECRET_ENV = "AZURE_KEY_VAULT_WEATHER_SECRET_NAME";
   private static final Logger logger = Logger.getLogger(WeatherServlet.class.getName());
 
-  private static InitialContext context;
+  @Inject
+  private CustomerInformationService customerInfo;
 
+  private final AzureKeyVaultSecretProvider secretProvider = new AzureKeyVaultSecretProvider();
   MBeanServer server;
   ObjectName weatherON;
   ObjectInstance mbean;
@@ -64,18 +52,13 @@ public class WeatherServlet extends HttpServlet {
     server = ManagementFactory.getPlatformMBeanServer();
     try {
       weatherON = new ObjectName("com.acme.modres.mbean:name=appInfo");
-    } catch (MalformedObjectNameException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
-    try {
       if (weatherON != null) {
         mbean = server.registerMBean(new AppInfo(), weatherON);
       }
-    } catch (InstanceAlreadyExistsException | MBeanRegistrationException | NotCompliantMBeanException e) {
+    } catch (MalformedObjectNameException | InstanceAlreadyExistsException | MBeanRegistrationException
+        | NotCompliantMBeanException e) {
       e.printStackTrace();
     }
-    context = setInitialContextProps();
   }
 
   @Override
@@ -84,7 +67,6 @@ public class WeatherServlet extends HttpServlet {
       try {
         server.unregisterMBean(weatherON);
       } catch (MBeanRegistrationException | InstanceNotFoundException e) {
-        // TODO Auto-generated catch block
         e.printStackTrace();
       }
     }
@@ -93,9 +75,7 @@ public class WeatherServlet extends HttpServlet {
   @Override
   protected void doGet(HttpServletRequest request,
       HttpServletResponse response) throws IOException, ServletException {
-
-    String methodName = "doGet";
-    logger.entering(WeatherServlet.class.getName(), methodName);
+    logger.entering(WeatherServlet.class.getName(), "doGet");
 
     try {
       MBeanInfo weatherConfig = server.getMBeanInfo(weatherON);
@@ -106,16 +86,18 @@ public class WeatherServlet extends HttpServlet {
     String city = request.getParameter("selectedCity");
     logger.log(Level.FINE, "requested city is " + city);
 
-    String weatherAPIKey = System.getenv(WEATHER_API_KEY);
-    String mockedKey = mockKey(weatherAPIKey);
-    logger.log(Level.FINE, "weatherAPIKey is " + mockedKey);
+    String secretName = System.getenv(WEATHER_API_KEY_SECRET_ENV);
+    if (secretName == null || secretName.trim().isEmpty()) {
+      secretName = "weather-api-key";
+    }
+    String weatherAPIKey = secretProvider.getSecret(secretName);
+    logger.log(Level.FINE, "weatherAPIKey is " + mockKey(weatherAPIKey));
 
     if (weatherAPIKey != null && weatherAPIKey.trim().length() > 0) {
-      logger.info("weatherAPIKey is found, system will provide the real time weather data for the city " + city);
+      logger.info("weatherAPIKey is found in Azure Key Vault, system will provide the real time weather data for the city " + city);
       getRealTimeWeatherData(city, weatherAPIKey, response);
     } else {
-      logger.info(
-          "weatherAPIKey is not found, will provide the weather data dated August 10th, 2018 for the city " + city);
+      logger.info("weatherAPIKey is not found in Azure Key Vault, will provide default weather data for the city " + city);
       getDefaultWeatherData(city, response);
     }
   }
@@ -141,138 +123,77 @@ public class WeatherServlet extends HttpServlet {
       String errorMsg = "Sorry, the weather information for your selected city: " + city +
           " is not available.  Valid selections are: " + Constants.SUPPORTED_CITIES;
       ExceptionHandler.handleException(null, errorMsg, logger);
+      return;
     }
 
-    URL obj = null;
     HttpURLConnection con = null;
     try {
-      obj = new URL(resturl);
+      URL obj = new URL(resturl);
       con = (HttpURLConnection) obj.openConnection();
       con.setRequestMethod("GET");
     } catch (MalformedURLException e1) {
-      String errorMsg = "Caught MalformedURLException. Please make sure the url is correct.";
-      ExceptionHandler.handleException(e1, errorMsg, logger);
+      ExceptionHandler.handleException(e1, "Caught MalformedURLException. Please make sure the url is correct.", logger);
+      return;
     } catch (ProtocolException e2) {
-      String errorMsg = "Caught ProtocolException: " + e2.getMessage()
-          + ". Not able to set request method to http connection.";
-      ExceptionHandler.handleException(e2, errorMsg, logger);
+      ExceptionHandler.handleException(e2,
+          "Caught ProtocolException: " + e2.getMessage() + ". Not able to set request method to http connection.", logger);
+      return;
     } catch (IOException e3) {
-      String errorMsg = "Caught IOException: " + e3.getMessage() + ". Not able to open connection.";
-      ExceptionHandler.handleException(e3, errorMsg, logger);
+      ExceptionHandler.handleException(e3, "Caught IOException: " + e3.getMessage() + ". Not able to open connection.", logger);
+      return;
     }
 
     int responseCode = con.getResponseCode();
     logger.log(Level.FINEST, "Response Code: " + responseCode);
 
     if (responseCode >= 200 && responseCode < 300) {
-
-      BufferedReader in = null;
-      ServletOutputStream out = null;
-
-      try {
-        in = new BufferedReader(new InputStreamReader(con.getInputStream()));
-        String inputLine = null;
-        StringBuffer responseStr = new StringBuffer();
-
+      try (BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
+          ServletOutputStream out = response.getOutputStream()) {
+        String inputLine;
+        StringBuilder responseStr = new StringBuilder();
         while ((inputLine = in.readLine()) != null) {
           responseStr.append(inputLine);
         }
-
         response.setContentType("application/json");
-        out = response.getOutputStream();
         out.print(responseStr.toString());
         logger.log(Level.FINE, "responseStr: " + responseStr);
       } catch (Exception e) {
-        String errorMsg = "Problem occured when processing the weather server response.";
-        ExceptionHandler.handleException(e, errorMsg, logger);
-      } finally {
-        if (in != null) {
-          in.close();
-        }
-        if (out != null) {
-          out.close();
-        }
-        in = null;
-        out = null;
+        ExceptionHandler.handleException(e, "Problem occured when processing the weather server response.", logger);
       }
     } else {
-      String errorMsg = "REST API call " + resturl + " returns an error response: " + responseCode;
-      ExceptionHandler.handleException(null, errorMsg, logger);
+      ExceptionHandler.handleException(null, "REST API call " + resturl + " returns an error response: " + responseCode, logger);
     }
   }
 
   private void getDefaultWeatherData(String city, HttpServletResponse response)
       throws ServletException, IOException {
     DefaultWeatherData defaultWeatherData = null;
-
     try {
       defaultWeatherData = new DefaultWeatherData(city);
     } catch (UnsupportedOperationException e) {
       ExceptionHandler.handleException(e, e.getMessage(), logger);
     }
 
-    ServletOutputStream out = null;
-
-    try {
+    try (ServletOutputStream out = response.getOutputStream()) {
       String responseStr = defaultWeatherData.getDefaultWeatherData();
       response.setContentType("application/json");
-      out = response.getOutputStream();
-      out.print(responseStr.toString());
+      out.print(responseStr);
       logger.log(Level.FINEST, "responseStr: " + responseStr);
     } catch (Exception e) {
-      String errorMsg = "Problem occured when getting the default weather data.";
-      ExceptionHandler.handleException(e, errorMsg, logger);
-    } finally {
-
-      if (out != null) {
-        out.close();
-      }
-
-      out = null;
+      ExceptionHandler.handleException(e, "Problem occured when getting the default weather data.", logger);
     }
   }
 
-  /**
-   * Returns the weather information for a given city
-   */
   protected void doPost(HttpServletRequest request, HttpServletResponse response)
       throws ServletException, IOException {
-
     doGet(request, response);
   }
 
   private static String mockKey(String toBeMocked) {
-    if (toBeMocked == null) {
-      return null;
+    if (toBeMocked == null || toBeMocked.length() < 3) {
+      return toBeMocked;
     }
     String lastToKeep = toBeMocked.substring(toBeMocked.length() - 3);
     return "*********" + lastToKeep;
-  }
-
-  private String configureEnvDiscovery() {
-
-    String serverEnv = "";
-
-    serverEnv += com.ibm.websphere.runtime.ServerName.getDisplayName();
-    serverEnv += com.ibm.websphere.runtime.ServerName.getFullName();
-
-    return serverEnv;
-  }
-
-  private InitialContext setInitialContextProps() {
-
-    Hashtable ht = new Hashtable();
-
-    ht.put("java.naming.factory.initial", "com.ibm.websphere.naming.WsnInitialContextFactory");
-    ht.put("java.naming.provider.url", "corbaloc:iiop:localhost:2809");
-
-    InitialContext ctx = null;
-    try {
-      ctx = new InitialContext(ht);
-    } catch (NamingException e) {
-      e.printStackTrace();
-    }
-
-    return ctx;
   }
 }

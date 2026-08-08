@@ -1,53 +1,48 @@
 package com.acme.modres;
 
+import com.acme.modres.mbean.IOUtils;
+import com.acme.modres.mbean.reservation.Reservation;
+import com.acme.modres.mbean.reservation.ReservationCheckerData;
+import com.acme.modres.scheduling.AzureServiceBusScheduler;
+import com.acme.modres.storage.AzureBlobStorageService;
+import com.acme.modres.util.ZipValidator;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintWriter;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.Date;
+import java.util.List;
 import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
-import javax.naming.InitialContext;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import com.acme.modres.mbean.IOUtils;
-import com.acme.modres.mbean.reservation.DateChecker;
-import com.acme.modres.mbean.reservation.ReservationCheckerData;
-import com.acme.modres.mbean.reservation.Reservation;
-
-import com.acme.modres.util.ZipValidator;
-
 @WebServlet({ "/resorts/availability" })
 public class AvailabilityCheckerServlet extends HttpServlet {
   private static final long serialVersionUID = 1L;
-
   private static final Logger logger = Logger.getLogger(AvailabilityCheckerServlet.class.getName());
-
-  private static InitialContext context;
-
+  private final AzureBlobStorageService blobStorageService = new AzureBlobStorageService();
+  private final AzureServiceBusScheduler scheduler = new AzureServiceBusScheduler();
   private ReservationCheckerData reservationCheckerData;
 
   @Override
   public void init() {
-    // load reserved dates
     this.reservationCheckerData = new ReservationCheckerData(IOUtils.getReservationListFromConfig());
+    scheduler.scheduleAvailabilityCheck("reservation-cache-refresh", OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(5));
   }
 
   @Override
   protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
-
-    String methodName = "doGet";
-    logger.entering(AvailabilityCheckerServlet.class.getName(), methodName);
+    logger.entering(AvailabilityCheckerServlet.class.getName(), "doGet");
     int statusCode = 200;
 
     String selectedDateStr = request.getParameter("date");
@@ -75,41 +70,29 @@ public class AvailabilityCheckerServlet extends HttpServlet {
       }
 
       reservationCheckerData.setAvailablility(isAvailible);
-
-      // Adjust the status code based on availability
       if (!isAvailible) {
         statusCode = 201;
       }
     }
 
-    // Send the response
-    PrintWriter out = response.getWriter();
     response.setContentType("application/json");
     response.setCharacterEncoding("UTF-8");
-    out.print("{\"availability\": \"" + String.valueOf(reservationCheckerData.isAvailible()) + "\"}");
+    try (PrintWriter out = response.getWriter()) {
+      out.print("{\"availability\": \"" + String.valueOf(reservationCheckerData.isAvailible()) + "\"}");
+    }
     response.setStatus(statusCode);
   }
 
-  /**
-   * Returns the weather information for a given city
-   */
   protected void doPost(HttpServletRequest request, HttpServletResponse response)
       throws ServletException, IOException {
-
     doGet(request, response);
   }
 
   protected int exportRevervations(String selectedDateStr) {
     File fileToZip = IOUtils.getFileFromRelativePath("reservations.json");
-    String userDirectory = System.getProperty("user.home");
-    String zipPath = userDirectory + "/reservations.zip";
-
-    FileOutputStream fos;
-    try {
-      fos = new FileOutputStream(zipPath);
-      ZipOutputStream zipOut = new ZipOutputStream(fos);
-
-      FileInputStream fis = new FileInputStream(fileToZip);
+    try (InputStream fis = Files.newInputStream(fileToZip.toPath());
+        ByteArrayOutputStream fos = new ByteArrayOutputStream();
+        ZipOutputStream zipOut = new ZipOutputStream(fos)) {
       ZipEntry zipEntry = new ZipEntry(fileToZip.getName());
       zipOut.putNextEntry(zipEntry);
 
@@ -118,27 +101,28 @@ public class AvailabilityCheckerServlet extends HttpServlet {
       while ((length = fis.read(bytes)) >= 0) {
         zipOut.write(bytes, 0, length);
       }
-      fis.close();
+      zipOut.closeEntry();
+      zipOut.finish();
 
-      zipOut.close();
-      fos.close();
-
-      // verify zip
-      ZipValidator zipValidator = new ZipValidator(new File(zipPath));
+      byte[] zipBytes = fos.toByteArray();
+      String blobUrl = blobStorageService.uploadWithGeneratedName("reservations", zipBytes);
+      ZipValidator zipValidator = new ZipValidator(writeValidationFile(zipBytes));
       if (zipValidator.isValid()) {
+        logger.info("Reservations exported to Azure Blob Storage: " + blobUrl);
         return 0;
       }
-    } catch (FileNotFoundException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
     } catch (IOException e) {
-      // TODO Auto-generated catch block
       e.printStackTrace();
     } catch (Throwable e) {
-      // TODO Auto-generated catch block
       e.printStackTrace();
     }
     return -1;
   }
 
+  private File writeValidationFile(byte[] zipBytes) throws IOException {
+    File validationFile = File.createTempFile("reservations-", ".zip");
+    validationFile.deleteOnExit();
+    java.nio.file.Files.write(validationFile.toPath(), zipBytes);
+    return validationFile;
+  }
 }
