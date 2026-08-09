@@ -1,9 +1,11 @@
 package com.acme.modres.mbean.reservation;
 
 import java.text.SimpleDateFormat;
+import java.time.OffsetDateTime;
 import java.util.Date;
 
 import com.acme.modres.Constants;
+import com.acme.modres.cloud.AzureServiceBusScheduler;
 
 public class ReservationCheckerData {
   private ReservationList reservations;
@@ -26,6 +28,7 @@ public class ReservationCheckerData {
   public boolean setSelectedDate(String dateStr) {
     try {
       selectedDate = new SimpleDateFormat(Constants.DATA_FORMAT).parse(dateStr);
+      AzureServiceBusScheduler.scheduleAvailabilityCheck("{\"date\":\"" + dateStr + "\"}", OffsetDateTime.now());
     } catch (Exception e) {
       return false;
     }

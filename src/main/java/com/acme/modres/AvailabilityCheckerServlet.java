@@ -1,18 +1,18 @@
 package com.acme.modres;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.OffsetDateTime;
+import java.util.Date;
+import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
+
 import javax.naming.InitialContext;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -20,12 +20,10 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import com.acme.modres.cloud.AzureServiceBusScheduler;
 import com.acme.modres.mbean.IOUtils;
-import com.acme.modres.mbean.reservation.DateChecker;
-import com.acme.modres.mbean.reservation.ReservationCheckerData;
 import com.acme.modres.mbean.reservation.Reservation;
-
-import com.acme.modres.util.ZipValidator;
+import com.acme.modres.mbean.reservation.ReservationCheckerData;
 
 @WebServlet({ "/resorts/availability" })
 public class AvailabilityCheckerServlet extends HttpServlet {
@@ -56,6 +54,7 @@ public class AvailabilityCheckerServlet extends HttpServlet {
       statusCode = 500;
       reservationCheckerData.setAvailablility(false);
     } else {
+      AzureServiceBusScheduler.scheduleAvailabilityCheck("{\"date\":\"" + selectedDateStr + "\"}", OffsetDateTime.now());
       List<Reservation> reservations = reservationCheckerData.getReservationList().getReservations();
       boolean isAvailible = true;
 
@@ -70,7 +69,7 @@ public class AvailabilityCheckerServlet extends HttpServlet {
             break;
           }
         } catch (ParseException ex) {
-          ex.printStackTrace();
+          logger.log(Level.WARNING, "Unable to parse reservation date", ex);
         }
       }
 
@@ -100,43 +99,30 @@ public class AvailabilityCheckerServlet extends HttpServlet {
   }
 
   protected int exportRevervations(String selectedDateStr) {
-    File fileToZip = IOUtils.getFileFromRelativePath("reservations.json");
-    String userDirectory = System.getProperty("user.home");
-    String zipPath = userDirectory + "/reservations.zip";
-
-    FileOutputStream fos;
     try {
-      fos = new FileOutputStream(zipPath);
-      ZipOutputStream zipOut = new ZipOutputStream(fos);
-
-      FileInputStream fis = new FileInputStream(fileToZip);
-      ZipEntry zipEntry = new ZipEntry(fileToZip.getName());
-      zipOut.putNextEntry(zipEntry);
-
-      byte[] bytes = new byte[1024];
-      int length;
-      while ((length = fis.read(bytes)) >= 0) {
-        zipOut.write(bytes, 0, length);
+      byte[] reservationData = IOUtils.getBytesFromCloudStorage("reservations.json");
+      if (reservationData == null) {
+        logger.warning("reservations.json was not found in Azure Blob Storage");
+        return -1;
       }
-      fis.close();
 
-      zipOut.close();
-      fos.close();
-
-      // verify zip
-      ZipValidator zipValidator = new ZipValidator(new File(zipPath));
-      if (zipValidator.isValid()) {
-        return 0;
+      byte[] zipBytes;
+      try (ByteArrayOutputStream zipBuffer = new ByteArrayOutputStream();
+          ZipOutputStream zipOut = new ZipOutputStream(zipBuffer)) {
+        ZipEntry zipEntry = new ZipEntry("reservations.json");
+        zipOut.putNextEntry(zipEntry);
+        zipOut.write(reservationData);
+        zipOut.closeEntry();
+        zipOut.finish();
+        zipBytes = zipBuffer.toByteArray();
       }
-    } catch (FileNotFoundException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
+
+      IOUtils.writeBytesToCloudStorage("exports/reservations.zip", zipBytes, "application/zip");
+      return 0;
     } catch (IOException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    } catch (Throwable e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
+      logger.log(Level.SEVERE, "Unable to export reservations to Azure Blob Storage", e);
+    } catch (RuntimeException e) {
+      logger.log(Level.SEVERE, "Unexpected error exporting reservations", e);
     }
     return -1;
   }

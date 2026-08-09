@@ -1,70 +1,49 @@
 package com.acme.modres.mbean;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-
+import com.acme.modres.cloud.AzureBlobStorageService;
 import com.acme.modres.mbean.reservation.ReservationList;
-import com.acme.modres.util.JsonInputStream;
+import com.google.gson.Gson;
+
+import java.io.IOException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public final class IOUtils {
+  private static final Logger LOGGER = Logger.getLogger(IOUtils.class.getName());
+  private static final Gson GSON = new Gson();
 
-  public static File getFileFromRelativePath(String path) {
-    File file = null;
-    InputStream initialStream = null;
-    OutputStream outStream = null;
-    try {
-      initialStream = IOUtils.class.getClassLoader().getResourceAsStream(path);
-      byte[] buffer = new byte[initialStream.available()];
-      initialStream.read(buffer);
+  private IOUtils() {
+  }
 
-      file = File.createTempFile(path, null);
-      outStream = new FileOutputStream(file);
-      outStream.write(buffer);
-      outStream.close();
-    } catch (Exception e) {
-      e.printStackTrace();
-    } finally {
-      if (initialStream != null) {
-        try {
-          initialStream.close();
-        } catch (IOException e) {
-        }
-      } else if (outStream != null) {
-        try {
-          outStream.close();
-        } catch (IOException e) {
-        }
-      }
-    }
+  public static byte[] getBytesFromCloudStorage(String blobName) throws IOException {
+    return AzureBlobStorageService.readBytes(blobName);
+  }
 
-    return file;
+  public static String getTextFromCloudStorage(String blobName) throws IOException {
+    return AzureBlobStorageService.readText(blobName);
+  }
+
+  public static void writeBytesToCloudStorage(String blobName, byte[] content, String contentType) throws IOException {
+    AzureBlobStorageService.uploadBytes(blobName, content, contentType);
   }
 
   public static OpMetadataList getOpListFromConfig() {
-    File file = getFileFromRelativePath("ops.json"); // fix hardcoded paths
-    try (JsonInputStream is = new JsonInputStream(file)) {
-      OpMetadataList opList = new OpMetadataList(); // empty default
-      opList = (OpMetadataList) is.parseJsonAs(OpMetadataList.class);
-      return opList;
+    try {
+      String json = getTextFromCloudStorage("ops.json");
+      return json == null ? null : GSON.fromJson(json, OpMetadataList.class);
     } catch (IOException e) {
-      e.printStackTrace();
+      LOGGER.log(Level.SEVERE, "Unable to read operations metadata from Azure Blob Storage", e);
       return null;
     }
   }
 
   public static ReservationList getReservationListFromConfig() {
-    File file = getFileFromRelativePath("reservations.json"); // fix hardcoded paths
-    try (JsonInputStream is = new JsonInputStream(file)) {
-      ReservationList reservationList = new ReservationList(); // empty default
-      reservationList = (ReservationList) is.parseJsonAs(ReservationList.class);
-      return reservationList;
+    try {
+      String json = getTextFromCloudStorage("reservations.json");
+      return json == null ? null : GSON.fromJson(json, ReservationList.class);
     } catch (IOException e) {
-      e.printStackTrace();
+      LOGGER.log(Level.SEVERE, "Unable to read reservation configuration from Azure Blob Storage", e);
       return null;
     }
   }
-
 }

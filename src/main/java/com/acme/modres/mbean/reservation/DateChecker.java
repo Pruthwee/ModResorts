@@ -2,12 +2,18 @@ package com.acme.modres.mbean.reservation;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.OffsetDateTime;
 import java.util.Date;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import com.acme.modres.Constants;
+import com.acme.modres.cloud.AzureServiceBusScheduler;
 
 public class DateChecker implements Runnable {
+  private static final Logger LOGGER = Logger.getLogger(DateChecker.class.getName());
+
   ReservationCheckerData data;
   List<Reservation> reservations;
 
@@ -17,6 +23,10 @@ public class DateChecker implements Runnable {
   }
 
   public void run() {
+    AzureServiceBusScheduler.scheduleAvailabilityCheck(
+        "{\"selectedDate\":\"" + data.getSelectedDate() + "\"}",
+        OffsetDateTime.now());
+
     for (int i = 0; i < reservations.size(); i++) {
       Reservation reservation = reservations.get(i);
       Date selectedDate = data.getSelectedDate();
@@ -26,10 +36,10 @@ public class DateChecker implements Runnable {
         Date toDate = new SimpleDateFormat(Constants.DATA_FORMAT).parse(reservation.getToDate());
         if (selectedDate.after(fromDate) && selectedDate.before(toDate)) {
           data.setAvailablility(false);
-          break;
+          return;
         }
       } catch (ParseException ex) {
-        ex.printStackTrace();
+        LOGGER.log(Level.WARNING, "Unable to parse reservation date", ex);
       }
     }
     data.setAvailablility(true);
