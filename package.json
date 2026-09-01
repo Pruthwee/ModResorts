@@ -1,0 +1,19 @@
+{
+  "name": "modresorts-css-build",
+  "version": "1.0.0",
+  "description": "CSS minification, purging, and HTML minification build tooling for ModResorts containerization (cz-css-1004, cz-css-1005, cz-html-1009)",
+  "private": true,
+  "scripts": {
+    "minify-css": "postcss WebContent/pikaday.css -o WebContent/pikaday.min.css && postcss WebContent/styles.css -o WebContent/styles.min.css",
+    "purge-css": "purgecss --css src/styles.css --content src/index.html src/login.jsp src/main.js --output purged/",
+    "minify-html": "html-minifier-terser --collapse-whitespace --remove-comments --remove-optional-tags --remove-redundant-attributes --remove-script-type-attributes --remove-tag-whitespace --use-short-doctype --minify-css true --minify-js true src/index.html -o dist/index.html"
+  },
+  "dependencies": {
+    "postcss": "^8.4.38",
+    "postcss-cli": "^11.0.0",
+    "cssnano": "^6.1.2",
+    "@fullhuman/postcss-purgecss": "^6.0.0",
+    "purgecss": "^6.0.0",
+    "html-minifier-terser": "^7.2.0"
+  }
+}

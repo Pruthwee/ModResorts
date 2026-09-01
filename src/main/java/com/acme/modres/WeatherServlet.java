@@ -13,7 +13,6 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URL;
-import java.util.Hashtable;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -35,8 +34,6 @@ import javax.management.NotCompliantMBeanException;
 import javax.management.ObjectInstance;
 import javax.management.ObjectName;
 import javax.management.ReflectionException;
-import javax.naming.InitialContext;
-import javax.naming.NamingException;
 import javax.servlet.annotation.WebServlet;
 
 @WebServlet({ "/resorts/weather" })
@@ -53,7 +50,10 @@ public class WeatherServlet extends HttpServlet {
 
   private static final Logger logger = Logger.getLogger(WeatherServlet.class.getName());
 
-  private static InitialContext context;
+  // Service discovery URL resolved from environment variable for container-native
+  // REST-based service discovery (replaces RMI/CORBA JNDI lookup)
+  private static final String SERVICE_DISCOVERY_URL_ENV = "SERVICE_DISCOVERY_URL";
+  private String serviceDiscoveryUrl;
 
   MBeanServer server;
   ObjectName weatherON;
@@ -75,7 +75,7 @@ public class WeatherServlet extends HttpServlet {
     } catch (InstanceAlreadyExistsException | MBeanRegistrationException | NotCompliantMBeanException e) {
       e.printStackTrace();
     }
-    context = setInitialContextProps();
+    serviceDiscoveryUrl = resolveServiceDiscoveryUrl();
   }
 
   @Override
@@ -253,26 +253,29 @@ public class WeatherServlet extends HttpServlet {
 
     String serverEnv = "";
 
-    serverEnv += com.ibm.websphere.runtime.ServerName.getDisplayName();
-    serverEnv += com.ibm.websphere.runtime.ServerName.getFullName();
+    // Replaced WebSphere-specific com.ibm.websphere.runtime.ServerName with
+    // standard environment variable lookups for container portability
+    serverEnv += System.getenv().getOrDefault("SERVER_DISPLAY_NAME", "");
+    serverEnv += System.getenv().getOrDefault("SERVER_FULL_NAME", "");
 
     return serverEnv;
   }
 
-  private InitialContext setInitialContextProps() {
-
-    Hashtable ht = new Hashtable();
-
-    ht.put("java.naming.factory.initial", "com.ibm.websphere.naming.WsnInitialContextFactory");
-    ht.put("java.naming.provider.url", "corbaloc:iiop:localhost:2809");
-
-    InitialContext ctx = null;
-    try {
-      ctx = new InitialContext(ht);
-    } catch (NamingException e) {
-      e.printStackTrace();
+  /**
+   * Resolves the service discovery URL from the environment variable
+   * SERVICE_DISCOVERY_URL for container-native REST-based service discovery.
+   * Replaces the former RMI/CORBA JNDI lookup (WsnInitialContextFactory /
+   * corbaloc:iiop:localhost:2809) which is not available in container environments.
+   * In Kubernetes, services are discovered via DNS and REST endpoints exposed
+   * through Kubernetes Services.
+   */
+  private String resolveServiceDiscoveryUrl() {
+    String url = System.getenv(SERVICE_DISCOVERY_URL_ENV);
+    if (url == null || url.trim().isEmpty()) {
+      logger.warning("SERVICE_DISCOVERY_URL environment variable is not set. "
+          + "REST-based service discovery will not be available.");
+      url = "";
     }
-
-    return ctx;
+    return url;
   }
 }

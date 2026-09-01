@@ -33,9 +33,11 @@
     /**
      * feature detection and helper functions
      */
-    var hasMoment = typeof moment === 'function',
+    var isBrowser = typeof window !== 'undefined' && typeof window.addEventListener !== 'undefined',
 
-    hasEventListeners = !!window.addEventListener,
+    hasMoment = typeof moment === 'function',
+
+    hasEventListeners = isBrowser && !!window.addEventListener,
 
     document = window.document,
 

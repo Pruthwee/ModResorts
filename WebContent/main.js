@@ -231,7 +231,7 @@ function callRESTAPI() {
         return
     }
     var resturl = null;
-    var getUrl = window.location;
+    var getUrl = (typeof window !== 'undefined' && window.location) ? window.location : { protocol: '', hostname: '', port: '' };
 
     var request = new XMLHttpRequest();
     if (chosenCity === "Paris"){

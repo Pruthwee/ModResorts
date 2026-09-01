@@ -1,0 +1,47 @@
+# Git metadata
+.git
+.gitignore
+
+# Node modules (installed fresh inside the css-build stage)
+node_modules
+
+# IDE / editor files
+.idea
+*.iml
+*.swp
+*.swo
+.vscode
+.DS_Store
+
+# Build output (Maven target directory)
+target
+
+# Migration bundle (not needed in container)
+migration-bundle
+
+# Documentation
+*.md
+CONTRIBUTING.md
+README.md
+LICENSE
+CODEOWNERS
+
+# Maven wrapper files (use system mvn only)
+mvnw
+mvnw.cmd
+.mvn/
+
+# Gradle wrapper (Maven is used for the container build)
+gradlew
+gradlew.bat
+gradlew.bat
+gradle/
+build.gradle.hideme
+
+# Test reports
+surefire-reports
+
+# Scripts and kubernetes manifests (not needed in image)
+scripts/
+kubernetes/
+docs/

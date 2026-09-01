@@ -1,0 +1,27 @@
+version: "3.8"
+
+services:
+  modresorts:
+    image: modresorts:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: modresorts
+    ports:
+      - "9080:9080"
+    environment:
+      - TZ=UTC
+      - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
+      - WEATHER_API_KEY=${WEATHER_API_KEY:-}
+      - REDIS_HOST=${REDIS_HOST:-localhost}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - SERVICE_DISCOVERY_URL=${SERVICE_DISCOVERY_URL:-}
+      - SERVER_DISPLAY_NAME=${SERVER_DISPLAY_NAME:-modresorts}
+      - SERVER_FULL_NAME=${SERVER_FULL_NAME:-modresorts-instance}
+    networks:
+      - app-network
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge
