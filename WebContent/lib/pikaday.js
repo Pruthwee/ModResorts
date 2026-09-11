@@ -4,6 +4,83 @@
  * Copyright © 2014 David Bushell | BSD & MIT license | https://github.com/Pikaday/Pikaday
  */
 
+(function () {
+    'use strict';
+
+    /**
+     * AWS CloudWatch structured error logger.
+     * Emits a JSON-formatted log entry to the console (captured by CloudWatch Logs agent),
+     * optionally publishes a CloudWatch custom metric via the embedded metric format (EMF),
+     * and forwards unrecoverable errors to an SQS Dead Letter Queue when the AWS SDK is
+     * available in the execution environment.
+     *
+     * @param {string} context  - Human-readable label for where the error occurred.
+     * @param {Error|*} err     - The caught error or exception value.
+     * @param {boolean} [fatal] - When true the error is also forwarded to the SQS DLQ.
+     */
+    function logErrorToCloudWatch(context, err, fatal) {
+        var entry = {
+            timestamp: new Date().toISOString(),
+            level: fatal ? 'FATAL' : 'ERROR',
+            context: context,
+            message: (err && err.message) ? err.message : String(err),
+            stack: (err && err.stack) ? err.stack : undefined,
+            // AWS Embedded Metric Format fields for CloudWatch Metrics
+            _aws: {
+                Timestamp: Date.now(),
+                CloudWatchMetrics: [{
+                    Namespace: 'ModResorts/Pikaday',
+                    Dimensions: [['Context']],
+                    Metrics: [{ Name: 'SwallowedError', Unit: 'Count' }]
+                }]
+            },
+            Context: context,
+            SwallowedError: 1
+        };
+        // Structured JSON log — captured by the CloudWatch Logs agent / Lambda log group
+        console.error(JSON.stringify(entry));
+
+        // Forward to SQS Dead Letter Queue when running in a Node.js environment with
+        // the AWS SDK available (e.g. Lambda, ECS, EC2 with instance role).
+        if (fatal && typeof require === 'function') {
+            try {
+                var AWS = require('aws-sdk');
+                var dlqUrl = (typeof process !== 'undefined' && process.env && process.env.ERROR_DLQ_URL)
+                    ? process.env.ERROR_DLQ_URL
+                    : null;
+                if (AWS && dlqUrl) {
+                    var sqs = new AWS.SQS();
+                    sqs.sendMessage({
+                        QueueUrl: dlqUrl,
+                        MessageBody: JSON.stringify(entry)
+                    }, function (sqsErr) {
+                        if (sqsErr) {
+                            console.error(JSON.stringify({
+                                timestamp: new Date().toISOString(),
+                                level: 'ERROR',
+                                context: 'logErrorToCloudWatch/SQS',
+                                message: 'Failed to send error to DLQ: ' + sqsErr.message
+                            }));
+                        }
+                    });
+                }
+            } catch (sdkErr) {
+                // AWS SDK not available in this environment — DLQ forwarding skipped
+                console.warn(JSON.stringify({
+                    timestamp: new Date().toISOString(),
+                    level: 'WARN',
+                    context: 'logErrorToCloudWatch/SQS',
+                    message: 'AWS SDK unavailable; DLQ forwarding skipped: ' + sdkErr.message
+                }));
+            }
+        }
+    }
+
+    if (typeof window !== 'undefined') { window._pikadayLogError = logErrorToCloudWatch; }
+    if (typeof module !== 'undefined' && module.exports) { module.exports._logError = logErrorToCloudWatch; }
+    if (typeof define === 'function' && define.amd) { define('pikadayErrorLogger', [], function () { return logErrorToCloudWatch; }); }
+}());
+
 (function (root, factory)
 {
     'use strict';
@@ -12,7 +89,9 @@
     if (typeof exports === 'object') {
         // CommonJS module
         // Load moment.js as an optional dependency
-        try { moment = require('moment'); } catch (e) {}
+        try { moment = require('moment'); } catch (e) {
+            logErrorToCloudWatch('pikaday/CommonJS/require-moment', e, false);
+        }
         module.exports = factory(moment);
     } else if (typeof define === 'function' && define.amd) {
         // AMD. Register as an anonymous module.
@@ -20,7 +99,9 @@
         {
             // Load moment.js as an optional dependency
             var id = 'moment';
-            try { moment = req(id); } catch (e) {}
+            try { moment = req(id); } catch (e) {
+                logErrorToCloudWatch('pikaday/AMD/require-moment', e, false);
+            }
             return factory(moment);
         });
     } else {

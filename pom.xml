@@ -5,7 +5,7 @@
   <groupId>com.acme.modres</groupId>
   <artifactId>modresorts</artifactId>
   <version>2.0.0</version>
-  <packaging>war</packaging>
+  <packaging>jar</packaging>
   <name>ModResorts</name>
   <properties>
     <maven.compiler.target>1.8</maven.compiler.target>
@@ -13,18 +13,33 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.version>2.0.0</project.version>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <spring.boot.version>2.7.18</spring.boot.version>
   </properties>
   <dependencies>
     <dependency>
-      <groupId>javax</groupId>
-      <artifactId>javaee-api</artifactId>
-      <version>7.0</version>
-      <scope>provided</scope>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>secretsmanager</artifactId>
+      <version>2.25.11</version>
     </dependency>
     <dependency>
-      <groupId>com.ibm.websphere.appserver</groupId>
-      <artifactId>was_public</artifactId>
-      <version>9.0.0</version>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>s3</artifactId>
+      <version>2.25.11</version>
+    </dependency>
+    <!-- Spring Boot Starter Web: provides embedded Tomcat servlet container,
+         replacing the external application server (WAR deployment) requirement.
+         Enables self-contained executable JAR for AWS ECS/EKS/Fargate deployment. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+      <version>${spring.boot.version}</version>
+    </dependency>
+    <!-- Embedded Tomcat is included transitively via spring-boot-starter-web.
+         javax.servlet-api is provided by the embedded container at runtime. -->
+    <dependency>
+      <groupId>javax.servlet</groupId>
+      <artifactId>javax.servlet-api</artifactId>
+      <version>4.0.1</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
@@ -88,19 +103,24 @@
   </dependencies>
   <build>
     <plugins>
+      <!-- spring-boot-maven-plugin: replaces maven-war-plugin to produce an
+           executable JAR with embedded Tomcat. This enables container deployment
+           on Amazon ECS, EKS, or AWS Fargate without an external application server.
+           The repackage goal wraps the standard JAR into a self-contained fat JAR
+           that can be launched with: java -jar modresorts-2.0.0.jar -->
       <plugin>
-        <artifactId>maven-war-plugin</artifactId>
-        <version>3.1.0</version>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <version>${spring.boot.version}</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
+          </execution>
+        </executions>
         <configuration>
-          <failOnMissingWebXml>false</failOnMissingWebXml>
-          <packagingExcludes>pom.xml, src/, target/, WebContent/</packagingExcludes>
-          <warSourceDirectory>WebContent</warSourceDirectory>
-          <webResources>
-            <resource>
-              <directory>src/main/resources</directory>
-              <targetPath>WEB-INF/classes</targetPath>
-            </resource>
-          </webResources>
+          <mainClass>com.acme.modres.ModResortsApplication</mainClass>
         </configuration>
       </plugin>
       <plugin>
@@ -120,6 +140,62 @@
                   <directory>src/main/resources</directory>
                 </resource>
               </resources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <!--
+        cr-css-1005: CSS Minification for AWS CodePipeline / CloudFront CDN Delivery
+        The minify-maven-plugin minifies CSS files (pikaday.css, styles.css) during
+        the process-resources phase so that minified CSS artifacts are packaged into
+        the JAR. When deployed to AWS, these minified files are served via CloudFront
+        from S3 for reduced bandwidth costs and faster CDN delivery across global regions.
+        This integrates CSS minification into the AWS CodePipeline build stage using
+        the YUI CSS compressor engine (equivalent to CSSNano/Clean-CSS minification).
+      -->
+      <plugin>
+        <groupId>com.samaxes.maven</groupId>
+        <artifactId>minify-maven-plugin</artifactId>
+        <version>1.7.6</version>
+        <executions>
+          <!-- Minify pikaday.css for AWS CloudFront CDN delivery -->
+          <execution>
+            <id>minify-pikaday-css</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>minify</goal>
+            </goals>
+            <configuration>
+              <webappSourceDir>${basedir}/WebContent</webappSourceDir>
+              <webappTargetDir>${project.build.directory}/${project.build.finalName}</webappTargetDir>
+              <cssSourceDir>.</cssSourceDir>
+              <cssSourceFiles>
+                <cssSourceFile>pikaday.css</cssSourceFile>
+              </cssSourceFiles>
+              <cssFinalFile>pikaday.css</cssFinalFile>
+              <skipMerge>true</skipMerge>
+              <nosuffix>true</nosuffix>
+              <cssEngine>YUI</cssEngine>
+            </configuration>
+          </execution>
+          <!-- Minify styles.css for AWS CloudFront CDN delivery -->
+          <execution>
+            <id>minify-styles-css</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>minify</goal>
+            </goals>
+            <configuration>
+              <webappSourceDir>${basedir}/WebContent</webappSourceDir>
+              <webappTargetDir>${project.build.directory}/${project.build.finalName}</webappTargetDir>
+              <cssSourceDir>.</cssSourceDir>
+              <cssSourceFiles>
+                <cssSourceFile>styles.css</cssSourceFile>
+              </cssSourceFiles>
+              <cssFinalFile>styles.css</cssFinalFile>
+              <skipMerge>true</skipMerge>
+              <nosuffix>true</nosuffix>
+              <cssEngine>YUI</cssEngine>
             </configuration>
           </execution>
         </executions>

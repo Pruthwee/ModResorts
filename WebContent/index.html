@@ -3,6 +3,24 @@
 
 <head>
     <meta charset="UTF-8">
+    <!--
+        Content-Security-Policy meta tag for cloud security compliance (SOC2 / pen-test).
+        Primary enforcement is delegated to AWS CloudFront Response Headers Policy so that
+        the policy can be updated centrally without redeploying the application.
+        The nonce placeholder (__CSP_NONCE__) is replaced at runtime by a CloudFront
+        Lambda@Edge function that generates a unique nonce per request.
+    -->
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self';
+                   script-src 'self' 'nonce-__CSP_NONCE__';
+                   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+                   font-src 'self' https://fonts.gstatic.com;
+                   img-src 'self' data: https://icons.wxug.com;
+                   connect-src 'self';
+                   object-src 'none';
+                   frame-ancestors 'none';
+                   base-uri 'self';
+                   form-action 'self'">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="pikaday.css">
@@ -10,8 +28,10 @@
     <!-- <script src="lib/pickaday.js"></script> -->
     <title>MOD RESORTS (A Transformation Advisor sample application)</title>
 
-    <script>
+    <!-- CSP nonce injected by AWS CloudFront Lambda@Edge at runtime -->
+    <script nonce="__CSP_NONCE__">
         function showCurrentDate() {
+            if (typeof window === 'undefined' || typeof document === 'undefined') { return ''; }
             var dateObj = new Date();
             var locale = "en-us";
             var month = dateObj.toLocaleString(locale, { month: "short" }); //months from 1-12
@@ -20,6 +40,7 @@
             return document.write(day + ' ' + month + ' ' + year);
         }
         function displayDate(dateObj, elem) {
+            if (typeof window === 'undefined' || typeof document === 'undefined') { return; }
             var locale = "en-us";
             var month = dateObj.toLocaleString(locale, { month: "short" }); //months from 1-12
             var day = dateObj.getUTCDate();
@@ -51,7 +72,7 @@
     <main class="hero js-hero">
         <nav class="sub-nav">
             <div class="select-container">
-                <select onchange="callRESTAPI()" class="select-city js-select">
+                <select id="js-select-city" class="select-city js-select">
                     <option value="">Where to?</option>
                     <option value="Paris">Paris, France</option>
                     <option value="Las Vegas">Las Vegas, USA</option>
@@ -66,7 +87,8 @@
             </div>
             <div class="travel-dates">
                 <div id="datepickerfrom">
-                    <script>showCurrentDate()</script>
+                    <!-- CSP nonce injected by AWS CloudFront Lambda@Edge at runtime -->
+                    <script nonce="__CSP_NONCE__">showCurrentDate()</script>
                 </div>
                 <svg width="14px" height="18px" viewBox="0 0 14 18" version="1.1" xmlns="http://www.w3.org/2000/svg"
                     xmlns:xlink="http://www.w3.org/1999/xlink">
@@ -86,7 +108,8 @@
             </div>
             <div class="travel-dates">
                 <div id="datepickerto">
-                    <script>showCurrentDate()</script>
+                    <!-- CSP nonce injected by AWS CloudFront Lambda@Edge at runtime -->
+                    <script nonce="__CSP_NONCE__">showCurrentDate()</script>
                 </div>
                 <svg width="14px" height="18px" viewBox="0 0 14 18" version="1.1" xmlns="http://www.w3.org/2000/svg"
                     xmlns:xlink="http://www.w3.org/1999/xlink">
@@ -106,7 +129,7 @@
             </div>
             <!--button class="button--submit" onclick="callRESTAPI()" value="Submit">Find it</button-->
             <!--button class="button--submit" onclick="callRESTAPI()" value="Submit">Find it</button-->
-            <button class="button--reserve" onclick="confirmReservcation()" value="Submit">Reserve</button>
+            <button id="btn-reserve" class="button--reserve" value="Submit">Reserve</button>
             <a href="/resorts/logout">
                 <button class="button--submit" value="Submit">Logout</button>
             </a>
@@ -196,30 +219,46 @@
     <script src="main.js"></script>
 
     <script src="lib/pikaday.js"></script>
-    <script>
+    <!-- CSP nonce injected by AWS CloudFront Lambda@Edge at runtime -->
+    <script nonce="__CSP_NONCE__">
 
-            var pickerFrom = new Pikaday(
-            {
-                field: document.getElementById('datepickerfrom'),
-                firstDay: 1,
-                minDate: new Date(),
-                maxDate: new Date(2020, 12, 31),
-                yearRange: [2000, 2020],
-                onSelect: function checkAvailability(selectedDate) {
-                            callAvailabilityChecker(selectedDate, document.getElementById('datepickerfrom'));
-                        }
-            });
-            var pickerTo = new Pikaday(
-            {
-                field: document.getElementById('datepickerto'),
-                firstDay: 1,
-                minDate: new Date(),
-                maxDate: new Date(2020, 12, 31),
-                yearRange: [2000, 2020],
-                onSelect: function checkAvailability(selectedDate) {
-                            callAvailabilityChecker(selectedDate, document.getElementById('datepickerto'));
-                        }
-            });
+            /* Guard all browser API access for AWS Lambda@Edge and Amplify SSR compatibility.
+               window/document are not available in server-side rendering environments.
+               This typeof check prevents ReferenceError during SSR on AWS Lambda@Edge. */
+            if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+
+                /* CSP-compliant external event listeners replacing inline handlers */
+                document.getElementById('js-select-city').addEventListener('change', function() {
+                    callRESTAPI();
+                });
+                document.getElementById('btn-reserve').addEventListener('click', function() {
+                    confirmReservcation();
+                });
+
+                var pickerFrom = new Pikaday(
+                {
+                    field: document.getElementById('datepickerfrom'),
+                    firstDay: 1,
+                    minDate: new Date(),
+                    maxDate: new Date(2020, 12, 31),
+                    yearRange: [2000, 2020],
+                    onSelect: function checkAvailability(selectedDate) {
+                                callAvailabilityChecker(selectedDate, document.getElementById('datepickerfrom'));
+                            }
+                });
+                var pickerTo = new Pikaday(
+                {
+                    field: document.getElementById('datepickerto'),
+                    firstDay: 1,
+                    minDate: new Date(),
+                    maxDate: new Date(2020, 12, 31),
+                    yearRange: [2000, 2020],
+                    onSelect: function checkAvailability(selectedDate) {
+                                callAvailabilityChecker(selectedDate, document.getElementById('datepickerto'));
+                            }
+                });
+
+            } /* end typeof window !== 'undefined' SSR guard */
 
     </script>
 

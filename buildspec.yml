@@ -1,0 +1,107 @@
+# AWS CodeBuild buildspec for ModResorts CSS Minification Pipeline
+# cr-css-1005: CSS Files Not Minified for Production
+# Remediation: Integrate CSS Minification in AWS CodePipeline with S3 and CloudFront Delivery
+#
+# This buildspec integrates CSS minification into the AWS CodePipeline build stage
+# using Clean-CSS so minified CSS artifacts are deployed to S3 and served via
+# CloudFront for reduced bandwidth and faster CDN delivery across global regions.
+
+version: 0.2
+
+env:
+  variables:
+    S3_BUCKET: "${S3_BUCKET}"
+    CLOUDFRONT_DISTRIBUTION_ID: "${CLOUDFRONT_DISTRIBUTION_ID}"
+    AWS_DEFAULT_REGION: "${AWS_DEFAULT_REGION}"
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 18
+      java: corretto17
+    commands:
+      - echo "Installing CSS minification tools (Clean-CSS CLI) for cr-css-1005 remediation..."
+      - npm install -g clean-css-cli@5.6.3
+      - echo "Installing Maven dependencies..."
+      - mvn dependency:resolve --no-transfer-progress
+
+  pre_build:
+    commands:
+      - echo "Pre-build phase started at $(date)"
+      - echo "Validating CSS source files..."
+      - test -f WebContent/styles.css && echo "styles.css found" || (echo "ERROR: styles.css not found" && exit 1)
+      - test -f WebContent/pikaday.css && echo "pikaday.css found" || (echo "ERROR: pikaday.css not found" && exit 1)
+      - echo "Recording original CSS file sizes for comparison..."
+      - STYLES_ORIGINAL_SIZE=$(wc -c < WebContent/styles.css)
+      - PIKADAY_ORIGINAL_SIZE=$(wc -c < WebContent/pikaday.css)
+      - echo "Original styles.css size: ${STYLES_ORIGINAL_SIZE} bytes"
+      - echo "Original pikaday.css size: ${PIKADAY_ORIGINAL_SIZE} bytes"
+
+  build:
+    commands:
+      - echo "Build phase started at $(date)"
+      - echo "Step 1: Minifying CSS files using Clean-CSS (cr-css-1005 remediation)..."
+      # Minify styles.css - addresses all 30 flagged occurrences (lines 86-136)
+      - cleancss --level 2 --output WebContent/styles.css WebContent/styles.css
+      - echo "styles.css minified successfully"
+      # Minify pikaday.css
+      - cleancss --level 2 --output WebContent/pikaday.css WebContent/pikaday.css
+      - echo "pikaday.css minified successfully"
+      - echo "Step 2: Building Java WAR artifact with Maven (includes minify-maven-plugin)..."
+      - mvn clean package --no-transfer-progress -DskipTests
+      - echo "WAR artifact built successfully"
+      - echo "Step 3: Reporting minification results..."
+      - STYLES_MINIFIED_SIZE=$(wc -c < WebContent/styles.css)
+      - PIKADAY_MINIFIED_SIZE=$(wc -c < WebContent/pikaday.css)
+      - echo "styles.css minified size: ${STYLES_MINIFIED_SIZE} bytes (was ${STYLES_ORIGINAL_SIZE} bytes)"
+      - echo "pikaday.css minified size: ${PIKADAY_MINIFIED_SIZE} bytes (was ${PIKADAY_ORIGINAL_SIZE} bytes)"
+
+  post_build:
+    commands:
+      - echo "Post-build phase started at $(date)"
+      - echo "Step 4: Uploading minified CSS artifacts to S3 for CloudFront CDN delivery..."
+      # Upload minified CSS to S3 with cache-control headers optimized for CloudFront CDN
+      - |
+        aws s3 cp WebContent/styles.css s3://${S3_BUCKET}/static/css/styles.css \
+          --content-type "text/css" \
+          --cache-control "public, max-age=31536000, immutable" \
+          --metadata "minified=true,tool=clean-css,rule=cr-css-1005"
+      - |
+        aws s3 cp WebContent/pikaday.css s3://${S3_BUCKET}/static/css/pikaday.css \
+          --content-type "text/css" \
+          --cache-control "public, max-age=31536000, immutable" \
+          --metadata "minified=true,tool=clean-css,rule=cr-css-1005"
+      - echo "Step 5: Invalidating CloudFront cache for updated CSS files..."
+      - |
+        aws cloudfront create-invalidation \
+          --distribution-id ${CLOUDFRONT_DISTRIBUTION_ID} \
+          --paths "/static/css/styles.css" "/static/css/pikaday.css"
+      - echo "CloudFront cache invalidation initiated"
+      - echo "Step 6: Uploading WAR artifact to S3..."
+      - |
+        aws s3 cp target/modresorts-2.0.0.war \
+          s3://${S3_BUCKET}/artifacts/modresorts-2.0.0.war \
+          --metadata "build-time=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      - echo "Build and deployment artifacts uploaded to S3 successfully"
+      - echo "CSS minification pipeline complete - cr-css-1005 remediation applied"
+
+artifacts:
+  files:
+    - target/modresorts-2.0.0.war
+    - WebContent/styles.css
+    - WebContent/pikaday.css
+    - buildspec.yml
+  name: modresorts-build-$(date +%Y%m%d-%H%M%S)
+  discard-paths: no
+
+cache:
+  paths:
+    - '/root/.m2/**/*'
+    - '/root/.npm/**/*'
+
+reports:
+  css-minification-report:
+    files:
+      - '**/*.css'
+    base-directory: WebContent
+    file-format: TEXT

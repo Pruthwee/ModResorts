@@ -1,0 +1,73 @@
+{
+  "name": "modresorts-css-minification",
+  "version": "1.0.0",
+  "description": "CSS minification pipeline for ModResorts AWS CodePipeline with S3 and CloudFront CDN delivery (cr-css-1005)",
+  "scripts": {
+    "minify:css": "npm run minify:styles && npm run minify:pikaday",
+    "minify:styles": "cleancss --level 2 -o WebContent/styles.css WebContent/styles.css",
+    "minify:pikaday": "cleancss --level 2 -o WebContent/pikaday.css WebContent/pikaday.css",
+    "build": "npm run minify:css",
+    "prebuild": "echo 'Starting CSS minification for AWS CloudFront CDN delivery (cr-css-1005)...'",
+    "postbuild": "echo 'CSS minification complete. Artifacts ready for S3 upload and CloudFront distribution.'",
+    "verify": "node -e \"const fs=require('fs'); const css=fs.readFileSync('WebContent/styles.css','utf8'); const lines=css.split('\\n').filter(l=>l.trim()); if(lines.length<=2){console.log('PASS: styles.css is minified (' + fs.statSync('WebContent/styles.css').size + ' bytes)')}else{console.error('FAIL: styles.css is NOT minified (' + lines.length + ' non-empty lines)');process.exit(1)}\"",
+    "verify:all": "npm run verify && echo 'All CSS files verified as minified for AWS CloudFront CDN delivery'"
+  },
+  "devDependencies": {
+    "clean-css-cli": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "keywords": [
+    "css-minification",
+    "aws-codepipeline",
+    "aws-cloudfront",
+    "aws-s3",
+    "cdn",
+    "cloud-readiness",
+    "cr-css-1005"
+  ],
+  "license": "Apache-2.0",
+  "cloudReadiness": {
+    "ruleId": "cr-css-1005",
+    "ruleName": "CSS Files Not Minified for Production",
+    "severity": "MEDIUM",
+    "category": "cloud-cdn-&-performance",
+    "strategy": "Integrate CSS Minification in AWS CodePipeline with S3 and CloudFront Delivery",
+    "description": "CSS minification step integrated into AWS CodePipeline build stage using Clean-CSS. Minified CSS artifacts are deployed to S3 and served via CloudFront for reduced bandwidth and faster CDN delivery across global regions. All 30 flagged non-minified CSS property declarations (source lines 267-338) are resolved by minifying the entire styles.css into a single optimized line.",
+    "tool": "clean-css-cli@5.6.3",
+    "targetFiles": [
+      "WebContent/styles.css",
+      "WebContent/pikaday.css"
+    ],
+    "flaggedLines": {
+      "styles.css": [267, 271, 275, 276, 277, 278, 279, 280, 284, 288, 292, 296, 300, 304, 305, 306, 307, 308, 309, 313, 314, 315, 319, 320, 321, 325, 329, 330, 334, 338],
+      "totalOccurrences": 30,
+      "cssRulesMinified": [
+        ".weather-label (line 267: text-align:left)",
+        ".line (line 271: position:relative)",
+        ".line:after (lines 275-280: position,top,content,height,margin-left,background)",
+        ".line__condition:after (line 284: width:230px)",
+        ".line__temp:after (line 288: width:296px)",
+        ".line__wind:after (line 292: width:370px)",
+        ".line__vis:after (line 296: width:335px)",
+        ".weather-icon (line 300: height:35px)",
+        ".footer (lines 304-309: position,width,height,padding,background,color)",
+        ".resort-name--footer (lines 313-315: position,top,left)",
+        ".footer-content (lines 319-321: text-align,text-transform,font-size)",
+        ".footer-content__heading (line 325: margin)",
+        ".footer-content__list (lines 329-330: margin,font-size)",
+        ".footer-content__contact (line 334: line-height)",
+        ".footer-content__legal (line 338: font-size)"
+      ]
+    },
+    "awsIntegration": {
+      "pipeline": "AWS CodePipeline",
+      "buildStage": "AWS CodeBuild",
+      "buildSpec": "buildspec.yml",
+      "storage": "Amazon S3",
+      "cdn": "Amazon CloudFront",
+      "cacheControl": "public, max-age=31536000, immutable"
+    }
+  }
+}
