@@ -3,16 +3,30 @@
 
 <head>
     <meta charset="UTF-8">
+    <!-- Content-Security-Policy meta tag (cr-html-1003):
+         Provides a baseline CSP for browsers that do not receive the CloudFront
+         Response Headers Policy (e.g., direct / non-CDN access).
+         The authoritative, nonce-augmented CSP is injected as an HTTP response
+         header by the AWS CloudFront Response Headers Policy and, for script
+         nonces, by a Lambda@Edge origin-response function that replaces the
+         {{CSP_NONCE}} placeholder with a per-request cryptographic value. -->
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; script-src 'self' 'nonce-{{CSP_NONCE}}'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://icons.wxug.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="pikaday.css">
+    <link rel="stylesheet" href="styles.min.css">
+    <link rel="stylesheet" href="pikaday.min.css">
     <link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600" rel="stylesheet">
     <!-- <script src="lib/pickaday.js"></script> -->
     <title>MOD RESORTS (A Transformation Advisor sample application)</title>
 
-    <script>
+    <!-- CSP Nonce: The nonce placeholder below is replaced at runtime by AWS CloudFront
+         Lambda@Edge, which generates a cryptographically random nonce per request and
+         injects a matching Content-Security-Policy response header (script-src 'nonce-<value>'). -->
+    <script nonce="{{CSP_NONCE}}">
         function showCurrentDate() {
             var dateObj = new Date();
+            /* cr-html-1009: Guard document API access for AWS Lambda@Edge / Amplify SSR compatibility */
+            if (typeof document === 'undefined') { return ''; }
             var locale = "en-us";
             var month = dateObj.toLocaleString(locale, { month: "short" }); //months from 1-12
             var day = dateObj.getUTCDate();
@@ -51,7 +65,7 @@
     <main class="hero js-hero">
         <nav class="sub-nav">
             <div class="select-container">
-                <select onchange="callRESTAPI()" class="select-city js-select">
+                <select id="city-select" class="select-city js-select">
                     <option value="">Where to?</option>
                     <option value="Paris">Paris, France</option>
                     <option value="Las Vegas">Las Vegas, USA</option>
@@ -66,7 +80,7 @@
             </div>
             <div class="travel-dates">
                 <div id="datepickerfrom">
-                    <script>showCurrentDate()</script>
+                    <script nonce="{{CSP_NONCE}}">showCurrentDate()</script>
                 </div>
                 <svg width="14px" height="18px" viewBox="0 0 14 18" version="1.1" xmlns="http://www.w3.org/2000/svg"
                     xmlns:xlink="http://www.w3.org/1999/xlink">
@@ -86,7 +100,7 @@
             </div>
             <div class="travel-dates">
                 <div id="datepickerto">
-                    <script>showCurrentDate()</script>
+                    <script nonce="{{CSP_NONCE}}">showCurrentDate()</script>
                 </div>
                 <svg width="14px" height="18px" viewBox="0 0 14 18" version="1.1" xmlns="http://www.w3.org/2000/svg"
                     xmlns:xlink="http://www.w3.org/1999/xlink">
@@ -106,7 +120,7 @@
             </div>
             <!--button class="button--submit" onclick="callRESTAPI()" value="Submit">Find it</button-->
             <!--button class="button--submit" onclick="callRESTAPI()" value="Submit">Find it</button-->
-            <button class="button--reserve" onclick="confirmReservcation()" value="Submit">Reserve</button>
+            <button id="reserve-btn" class="button--reserve" value="Submit">Reserve</button>
             <a href="/resorts/logout">
                 <button class="button--submit" value="Submit">Logout</button>
             </a>
@@ -196,8 +210,11 @@
     <script src="main.js"></script>
 
     <script src="lib/pikaday.js"></script>
-    <script>
-
+    <script nonce="{{CSP_NONCE}}">
+        /* cr-html-1009: Guard all document/window API access with typeof checks for
+           AWS Lambda@Edge and Amplify SSR compatibility — browser APIs are unavailable
+           during server-side rendering and will throw ReferenceError if unguarded. */
+        if (typeof document !== 'undefined') {
             var pickerFrom = new Pikaday(
             {
                 field: document.getElementById('datepickerfrom'),
@@ -220,7 +237,21 @@
                             callAvailabilityChecker(selectedDate, document.getElementById('datepickerto'));
                         }
             });
-
+        }
+    </script>
+    <!-- CSP-compliant external event listeners replacing inline onchange/onclick handlers.
+         This script block is protected by the same nonce injected by AWS CloudFront Lambda@Edge. -->
+    <script nonce="{{CSP_NONCE}}">
+        /* cr-html-1001: Replace inline event handlers with addEventListener for CSP compliance */
+        /* cr-html-1009: Guard document API access for AWS Lambda@Edge / Amplify SSR compatibility */
+        if (typeof document !== 'undefined') {
+            document.getElementById('city-select').addEventListener('change', function() {
+                callRESTAPI();
+            });
+            document.getElementById('reserve-btn').addEventListener('click', function() {
+                confirmReservcation();
+            });
+        }
     </script>
 
 </body>

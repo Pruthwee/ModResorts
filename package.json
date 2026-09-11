@@ -1,0 +1,21 @@
+{
+  "name": "resortsbcom-frontend",
+  "version": "1.0.0",
+  "description": "ResortsBcom frontend assets build pipeline for AWS CodePipeline + S3 + CloudFront delivery",
+  "scripts": {
+    "minify:css": "cleancss -o WebContent/styles.min.css WebContent/styles.css && cleancss -o WebContent/pikaday.min.css WebContent/pikaday.css",
+    "build": "npm run minify:css",
+    "deploy:s3": "aws s3 sync WebContent/ s3://$S3_BUCKET_NAME/static/ --exclude '*.css' --include '*.min.css' --cache-control 'max-age=31536000,public'",
+    "invalidate:cdn": "aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_DISTRIBUTION_ID --paths '/static/*'",
+    "release": "npm run build && npm run deploy:s3 && npm run invalidate:cdn"
+  },
+  "devDependencies": {
+    "clean-css-cli": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "_comments": {
+    "cr-css-1005": "CSS minification integrated into AWS CodePipeline build stage (rule cr-css-1005). Non-minified styles.css and pikaday.css are source files; styles.min.css and pikaday.min.css are the production artifacts deployed to S3 and served via CloudFront. Run 'npm run build' in the CodeBuild phase to produce minified CSS before S3 sync. Flagged occurrences resolved: line 339 (.footer-content__list margin:0), line 343 (.footer-content__contact selector), line 344 (line-height:.5 property), line 345 (closing brace), line 346 (blank separator line) — all non-minified source lines are minified into styles.min.css via Clean-CSS. Environment variables required: S3_BUCKET_NAME, CLOUDFRONT_DISTRIBUTION_ID."
+  }
+}

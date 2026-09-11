@@ -1,0 +1,72 @@
+version: 0.2
+
+# AWS CodeBuild buildspec for CSS minification and CloudFront/S3 delivery
+# Rule: cr-css-1005 - CSS Files Not Minified for Production
+# Integrates with AWS CodePipeline to minify CSS artifacts before S3 upload
+# and CloudFront CDN distribution for reduced bandwidth and faster delivery.
+
+env:
+  variables:
+    NODE_VERSION: "18"
+  parameter-store:
+    S3_BUCKET_NAME: "/resortsbcom/s3/static-bucket-name"
+    CLOUDFRONT_DISTRIBUTION_ID: "/resortsbcom/cloudfront/distribution-id"
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 18
+    commands:
+      - echo "Installing CSS minification dependencies..."
+      - npm install -g clean-css-cli
+
+  pre_build:
+    commands:
+      - echo "Pre-build phase started on $(date)"
+      - echo "Validating CSS source files..."
+      - ls -la WebContent/*.css
+
+  build:
+    commands:
+      - echo "Build phase started on $(date)"
+      - echo "Minifying pikaday.css with Clean-CSS..."
+      - cleancss --level 2 -o WebContent/pikaday.min.css WebContent/pikaday.css
+      - echo "Minifying styles.css with Clean-CSS..."
+      - cleancss --level 2 -o WebContent/styles.min.css WebContent/styles.css
+      - echo "CSS minification complete. Verifying output sizes..."
+      - ls -lh WebContent/*.css
+
+  post_build:
+    commands:
+      - echo "Post-build phase started on $(date)"
+      - echo "Uploading minified CSS artifacts to S3 bucket $S3_BUCKET_NAME..."
+      - |
+        aws s3 cp WebContent/pikaday.min.css \
+          s3://$S3_BUCKET_NAME/static/pikaday.min.css \
+          --content-type "text/css" \
+          --cache-control "max-age=31536000, public, immutable" \
+          --metadata-directive REPLACE
+      - |
+        aws s3 cp WebContent/styles.min.css \
+          s3://$S3_BUCKET_NAME/static/styles.min.css \
+          --content-type "text/css" \
+          --cache-control "max-age=31536000, public, immutable" \
+          --metadata-directive REPLACE
+      - echo "Invalidating CloudFront distribution $CLOUDFRONT_DISTRIBUTION_ID..."
+      - |
+        aws cloudfront create-invalidation \
+          --distribution-id $CLOUDFRONT_DISTRIBUTION_ID \
+          --paths "/static/pikaday.min.css" "/static/styles.min.css"
+      - echo "Build and deployment complete on $(date)"
+
+artifacts:
+  files:
+    - WebContent/pikaday.min.css
+    - WebContent/styles.min.css
+    - WebContent/**/*
+  discard-paths: no
+  base-directory: .
+
+cache:
+  paths:
+    - node_modules/**/*
