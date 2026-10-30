@@ -4,29 +4,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://icons.wxug.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="pikaday.css">
     <link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600" rel="stylesheet">
     <!-- <script src="lib/pickaday.js"></script> -->
     <title>MOD RESORTS (A Transformation Advisor sample application)</title>
-
-    <script>
-        function showCurrentDate() {
-            var dateObj = new Date();
-            var locale = "en-us";
-            var month = dateObj.toLocaleString(locale, { month: "short" }); //months from 1-12
-            var day = dateObj.getUTCDate();
-            var year = dateObj.getUTCFullYear();
-            return document.write(day + ' ' + month + ' ' + year);
-        }
-        function displayDate(dateObj, elem) {
-            var locale = "en-us";
-            var month = dateObj.toLocaleString(locale, { month: "short" }); //months from 1-12
-            var day = dateObj.getUTCDate();
-            var year = dateObj.getUTCFullYear();
-            elem.innerHTML = day + ' ' + month + ' ' + year;
-        }
-    </script>
 </head>
 
 
@@ -51,7 +35,7 @@
     <main class="hero js-hero">
         <nav class="sub-nav">
             <div class="select-container">
-                <select onchange="callRESTAPI()" class="select-city js-select">
+                <select id="city-select" class="select-city js-select">
                     <option value="">Where to?</option>
                     <option value="Paris">Paris, France</option>
                     <option value="Las Vegas">Las Vegas, USA</option>
@@ -65,9 +49,7 @@
                 </svg>
             </div>
             <div class="travel-dates">
-                <div id="datepickerfrom">
-                    <script>showCurrentDate()</script>
-                </div>
+                <div id="datepickerfrom"></div>
                 <svg width="14px" height="18px" viewBox="0 0 14 18" version="1.1" xmlns="http://www.w3.org/2000/svg"
                     xmlns:xlink="http://www.w3.org/1999/xlink">
                     <g id="Symbols" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
@@ -85,9 +67,7 @@
                 </svg>
             </div>
             <div class="travel-dates">
-                <div id="datepickerto">
-                    <script>showCurrentDate()</script>
-                </div>
+                <div id="datepickerto"></div>
                 <svg width="14px" height="18px" viewBox="0 0 14 18" version="1.1" xmlns="http://www.w3.org/2000/svg"
                     xmlns:xlink="http://www.w3.org/1999/xlink">
                     <g id="Symbols" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
@@ -106,7 +86,7 @@
             </div>
             <!--button class="button--submit" onclick="callRESTAPI()" value="Submit">Find it</button-->
             <!--button class="button--submit" onclick="callRESTAPI()" value="Submit">Find it</button-->
-            <button class="button--reserve" onclick="confirmReservcation()" value="Submit">Reserve</button>
+            <button id="reserve-btn" class="button--reserve" value="Submit">Reserve</button>
             <a href="/resorts/logout">
                 <button class="button--submit" value="Submit">Logout</button>
             </a>
@@ -196,32 +176,7 @@
     <script src="main.js"></script>
 
     <script src="lib/pikaday.js"></script>
-    <script>
-
-            var pickerFrom = new Pikaday(
-            {
-                field: document.getElementById('datepickerfrom'),
-                firstDay: 1,
-                minDate: new Date(),
-                maxDate: new Date(2020, 12, 31),
-                yearRange: [2000, 2020],
-                onSelect: function checkAvailability(selectedDate) {
-                            callAvailabilityChecker(selectedDate, document.getElementById('datepickerfrom'));
-                        }
-            });
-            var pickerTo = new Pikaday(
-            {
-                field: document.getElementById('datepickerto'),
-                firstDay: 1,
-                minDate: new Date(),
-                maxDate: new Date(2020, 12, 31),
-                yearRange: [2000, 2020],
-                onSelect: function checkAvailability(selectedDate) {
-                            callAvailabilityChecker(selectedDate, document.getElementById('datepickerto'));
-                        }
-            });
-
-    </script>
+    <script src="index-init.js"></script>
 
 </body>
 
