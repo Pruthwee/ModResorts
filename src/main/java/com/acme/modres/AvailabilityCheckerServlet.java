@@ -1,18 +1,17 @@
 package com.acme.modres;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
+import java.util.List;
 import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
 import javax.naming.InitialContext;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -25,7 +24,12 @@ import com.acme.modres.mbean.reservation.DateChecker;
 import com.acme.modres.mbean.reservation.ReservationCheckerData;
 import com.acme.modres.mbean.reservation.Reservation;
 
-import com.acme.modres.util.ZipValidator;
+import com.azure.storage.blob.BlobClient;
+import com.azure.storage.blob.BlobContainerClient;
+import com.azure.storage.blob.BlobServiceClient;
+import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.azure.identity.DefaultAzureCredentialBuilder;
+import com.azure.core.exception.AzureException;
 
 @WebServlet({ "/resorts/availability" })
 public class AvailabilityCheckerServlet extends HttpServlet {
@@ -61,15 +65,16 @@ public class AvailabilityCheckerServlet extends HttpServlet {
 
       for (Reservation reservation : reservations) {
         try {
-          Date fromDate = new SimpleDateFormat(Constants.DATA_FORMAT).parse(reservation.getFromDate());
-          Date toDate = new SimpleDateFormat(Constants.DATA_FORMAT).parse(reservation.getToDate());
+          DateTimeFormatter dtf = DateTimeFormatter.ofPattern(Constants.DATA_FORMAT).withZone(ZoneOffset.UTC);
+          Date fromDate = Date.from(LocalDate.parse(reservation.getFromDate(), dtf).atStartOfDay(ZoneOffset.UTC).toInstant());
+          Date toDate = Date.from(LocalDate.parse(reservation.getToDate(), dtf).atStartOfDay(ZoneOffset.UTC).toInstant());
           Date selectedDate = reservationCheckerData.getSelectedDate();
 
           if (selectedDate.after(fromDate) && selectedDate.before(toDate)) {
             isAvailible = false;
             break;
           }
-        } catch (ParseException ex) {
+        } catch (Exception ex) {
           ex.printStackTrace();
         }
       }
@@ -100,45 +105,50 @@ public class AvailabilityCheckerServlet extends HttpServlet {
   }
 
   protected int exportRevervations(String selectedDateStr) {
-    File fileToZip = IOUtils.getFileFromRelativePath("reservations.json");
-    String userDirectory = System.getProperty("user.home");
-    String zipPath = userDirectory + "/reservations.zip";
+    byte[] fileData = IOUtils.getBytesFromRelativePath("reservations.json");
+    String blobName = "reservations.zip";
 
-    FileOutputStream fos;
-    try {
-      fos = new FileOutputStream(zipPath);
-      ZipOutputStream zipOut = new ZipOutputStream(fos);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    try (ByteArrayInputStream bis = new ByteArrayInputStream(fileData);
+         ZipOutputStream zipOut = new ZipOutputStream(baos)) {
 
-      FileInputStream fis = new FileInputStream(fileToZip);
-      ZipEntry zipEntry = new ZipEntry(fileToZip.getName());
+      ZipEntry zipEntry = new ZipEntry("reservations.json");
       zipOut.putNextEntry(zipEntry);
 
       byte[] bytes = new byte[1024];
       int length;
-      while ((length = fis.read(bytes)) >= 0) {
+      while ((length = bis.read(bytes)) >= 0) {
         zipOut.write(bytes, 0, length);
       }
-      fis.close();
 
-      zipOut.close();
-      fos.close();
+      zipOut.closeEntry();
 
-      // verify zip
-      ZipValidator zipValidator = new ZipValidator(new File(zipPath));
-      if (zipValidator.isValid()) {
-        return 0;
-      }
-    } catch (FileNotFoundException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
+      byte[] zipData = baos.toByteArray();
+
+      // Upload to Azure Blob Storage
+      BlobContainerClient containerClient = getBlobContainerClient();
+      BlobClient blobClient = containerClient.getBlobClient(blobName);
+      blobClient.upload(new ByteArrayInputStream(zipData), zipData.length, true);
+
+      return 0;
     } catch (IOException e) {
-      // TODO Auto-generated catch block
       e.printStackTrace();
-    } catch (Throwable e) {
-      // TODO Auto-generated catch block
+    } catch (AzureException e) {
       e.printStackTrace();
     }
     return -1;
+  }
+
+  private static BlobContainerClient getBlobContainerClient() {
+    String storageEndpoint = System.getenv("AZURE_STORAGE_ENDPOINT");
+    if (storageEndpoint == null || storageEndpoint.trim().length() == 0) {
+      throw new IllegalStateException("AZURE_STORAGE_ENDPOINT is not set");
+    }
+    BlobServiceClient serviceClient = new BlobServiceClientBuilder()
+        .endpoint(storageEndpoint)
+        .credential(new DefaultAzureCredentialBuilder().build())
+        .buildClient();
+    return serviceClient.getBlobContainerClient("modresorts");
   }
 
 }

@@ -1,29 +1,29 @@
 package com.acme.modres.mbean;
 
-import java.io.File;
-import java.io.FileOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 
 import com.acme.modres.mbean.reservation.ReservationList;
-import com.acme.modres.util.JsonInputStream;
+import com.google.gson.Gson;
 
 public final class IOUtils {
 
-  public static File getFileFromRelativePath(String path) {
-    File file = null;
+  public static byte[] getBytesFromRelativePath(String path) {
     InputStream initialStream = null;
-    OutputStream outStream = null;
+    ByteArrayOutputStream baos = null;
     try {
       initialStream = IOUtils.class.getClassLoader().getResourceAsStream(path);
-      byte[] buffer = new byte[initialStream.available()];
-      initialStream.read(buffer);
-
-      file = File.createTempFile(path, null);
-      outStream = new FileOutputStream(file);
-      outStream.write(buffer);
-      outStream.close();
+      if (initialStream == null) {
+        return null;
+      }
+      baos = new ByteArrayOutputStream();
+      byte[] buffer = new byte[4096];
+      int length;
+      while ((length = initialStream.read(buffer)) != -1) {
+        baos.write(buffer, 0, length);
+      }
+      return baos.toByteArray();
     } catch (Exception e) {
       e.printStackTrace();
     } finally {
@@ -32,38 +32,59 @@ public final class IOUtils {
           initialStream.close();
         } catch (IOException e) {
         }
-      } else if (outStream != null) {
+      }
+      if (baos != null) {
         try {
-          outStream.close();
+          baos.close();
         } catch (IOException e) {
         }
       }
     }
 
-    return file;
+    return null;
   }
 
   public static OpMetadataList getOpListFromConfig() {
-    File file = getFileFromRelativePath("ops.json"); // fix hardcoded paths
-    try (JsonInputStream is = new JsonInputStream(file)) {
-      OpMetadataList opList = new OpMetadataList(); // empty default
-      opList = (OpMetadataList) is.parseJsonAs(OpMetadataList.class);
-      return opList;
-    } catch (IOException e) {
+    InputStream is = null;
+    try {
+      is = IOUtils.class.getClassLoader().getResourceAsStream("ops.json");
+      if (is == null) {
+        return null;
+      }
+      Gson gson = new Gson();
+      return gson.fromJson(new java.io.InputStreamReader(is), OpMetadataList.class);
+    } catch (Exception e) {
       e.printStackTrace();
       return null;
+    } finally {
+      if (is != null) {
+        try {
+          is.close();
+        } catch (IOException e) {
+        }
+      }
     }
   }
 
   public static ReservationList getReservationListFromConfig() {
-    File file = getFileFromRelativePath("reservations.json"); // fix hardcoded paths
-    try (JsonInputStream is = new JsonInputStream(file)) {
-      ReservationList reservationList = new ReservationList(); // empty default
-      reservationList = (ReservationList) is.parseJsonAs(ReservationList.class);
-      return reservationList;
-    } catch (IOException e) {
+    InputStream is = null;
+    try {
+      is = IOUtils.class.getClassLoader().getResourceAsStream("reservations.json");
+      if (is == null) {
+        return null;
+      }
+      Gson gson = new Gson();
+      return gson.fromJson(new java.io.InputStreamReader(is), ReservationList.class);
+    } catch (Exception e) {
       e.printStackTrace();
       return null;
+    } finally {
+      if (is != null) {
+        try {
+          is.close();
+        } catch (IOException e) {
+        }
+      }
     }
   }
 

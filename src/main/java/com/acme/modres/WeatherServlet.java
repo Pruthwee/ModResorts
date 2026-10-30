@@ -4,6 +4,11 @@ import com.acme.modres.db.ModResortsCustomerInformation;
 import com.acme.modres.exception.ExceptionHandler;
 import com.acme.modres.mbean.AppInfo;
 
+import com.azure.identity.DefaultAzureCredentialBuilder;
+import com.azure.security.keyvault.secrets.SecretClient;
+import com.azure.security.keyvault.secrets.SecretClientBuilder;
+import com.azure.core.exception.AzureException;
+
 import java.io.BufferedReader;
 
 import java.io.IOException;
@@ -23,7 +28,6 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import javax.inject.Inject;
 import javax.management.InstanceAlreadyExistsException;
 import javax.management.InstanceNotFoundException;
 import javax.management.IntrospectionException;
@@ -43,8 +47,7 @@ import javax.servlet.annotation.WebServlet;
 public class WeatherServlet extends HttpServlet {
   private static final long serialVersionUID = 1L;
 
-  @Inject
-  private ModResortsCustomerInformation customerInfo;
+  private ModResortsCustomerInformation customerInfo = ModResortsCustomerInformation.getInstance();
 
   // local OS environment variable key name. The key value should provide an API
   // key that will be used to
@@ -106,7 +109,7 @@ public class WeatherServlet extends HttpServlet {
     String city = request.getParameter("selectedCity");
     logger.log(Level.FINE, "requested city is " + city);
 
-    String weatherAPIKey = System.getenv(WEATHER_API_KEY);
+    String weatherAPIKey = getWeatherApiKey();
     String mockedKey = mockKey(weatherAPIKey);
     logger.log(Level.FINE, "weatherAPIKey is " + mockedKey);
 
@@ -117,6 +120,24 @@ public class WeatherServlet extends HttpServlet {
       logger.info(
           "weatherAPIKey is not found, will provide the weather data dated August 10th, 2018 for the city " + city);
       getDefaultWeatherData(city, response);
+    }
+  }
+
+  private String getWeatherApiKey() {
+    String keyVaultUrl = System.getenv("KEY_VAULT_URL");
+    String secretName = System.getenv(WEATHER_API_KEY);
+    if (keyVaultUrl == null || keyVaultUrl.trim().length() == 0 || secretName == null || secretName.trim().length() == 0) {
+      return null;
+    }
+    try {
+      SecretClient secretClient = new SecretClientBuilder()
+          .vaultUrl(keyVaultUrl)
+          .credential(new DefaultAzureCredentialBuilder().build())
+          .buildClient();
+      return secretClient.getSecret(secretName).getValue();
+    } catch (AzureException e) {
+      logger.log(Level.SEVERE, "Failed to retrieve weather API key from Key Vault", e);
+      return null;
     }
   }
 
@@ -247,16 +268,6 @@ public class WeatherServlet extends HttpServlet {
     }
     String lastToKeep = toBeMocked.substring(toBeMocked.length() - 3);
     return "*********" + lastToKeep;
-  }
-
-  private String configureEnvDiscovery() {
-
-    String serverEnv = "";
-
-    serverEnv += com.ibm.websphere.runtime.ServerName.getDisplayName();
-    serverEnv += com.ibm.websphere.runtime.ServerName.getFullName();
-
-    return serverEnv;
   }
 
   private InitialContext setInitialContextProps() {
