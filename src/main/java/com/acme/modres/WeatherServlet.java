@@ -9,6 +9,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.management.ManagementFactory;
+import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
@@ -39,6 +40,11 @@ import javax.naming.InitialContext;
 import javax.naming.NamingException;
 import javax.servlet.annotation.WebServlet;
 
+import com.azure.identity.DefaultAzureCredentialBuilder;
+import com.azure.security.keyvault.secrets.SecretClient;
+import com.azure.security.keyvault.secrets.SecretClientBuilder;
+import com.azure.core.exception.AzureException;
+
 @WebServlet({ "/resorts/weather" })
 public class WeatherServlet extends HttpServlet {
   private static final long serialVersionUID = 1L;
@@ -46,10 +52,8 @@ public class WeatherServlet extends HttpServlet {
   @Inject
   private ModResortsCustomerInformation customerInfo;
 
-  // local OS environment variable key name. The key value should provide an API
-  // key that will be used to
-  // get weather information from site: http://www.wunderground.com
-  private static final String WEATHER_API_KEY = "WEATHER_API_KEY";
+  // Secret name in Azure Key Vault for the Weather Underground API key
+  private static final String WEATHER_API_KEY_SECRET = "WEATHER_API_KEY_SECRET";
 
   private static final Logger logger = Logger.getLogger(WeatherServlet.class.getName());
 
@@ -106,7 +110,19 @@ public class WeatherServlet extends HttpServlet {
     String city = request.getParameter("selectedCity");
     logger.log(Level.FINE, "requested city is " + city);
 
-    String weatherAPIKey = System.getenv(WEATHER_API_KEY);
+    String weatherAPIKey = null;
+    try {
+      String keyVaultUrl = System.getenv("KEY_VAULT_URL");
+      if (keyVaultUrl != null && keyVaultUrl.trim().length() > 0) {
+        SecretClient secretClient = new SecretClientBuilder()
+            .vaultUrl(keyVaultUrl)
+            .credential(new DefaultAzureCredentialBuilder().build())
+            .buildClient();
+        weatherAPIKey = secretClient.getSecret(WEATHER_API_KEY_SECRET).getValue();
+      }
+    } catch (AzureException e) {
+      logger.log(Level.WARNING, "Failed to retrieve weather API key from Key Vault", e);
+    }
     String mockedKey = mockKey(weatherAPIKey);
     logger.log(Level.FINE, "weatherAPIKey is " + mockedKey);
 
@@ -253,8 +269,17 @@ public class WeatherServlet extends HttpServlet {
 
     String serverEnv = "";
 
-    serverEnv += com.ibm.websphere.runtime.ServerName.getDisplayName();
-    serverEnv += com.ibm.websphere.runtime.ServerName.getFullName();
+    try {
+      Class<?> serverNameClass = Class.forName("com.ibm.websphere.runtime.ServerName");
+      Method getDisplayNameMethod = serverNameClass.getMethod("getDisplayName");
+      Method getFullNameMethod = serverNameClass.getMethod("getFullName");
+      serverEnv += getDisplayNameMethod.invoke(null);
+      serverEnv += getFullNameMethod.invoke(null);
+    } catch (ClassNotFoundException e) {
+      // WebSphere not available
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
 
     return serverEnv;
   }

@@ -5,9 +5,8 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import com.ibm.websphere.security.WSSecurityHelper;
-
 import java.io.IOException;
+import java.lang.reflect.Method;
 
 @WebServlet({ "/logout" })
 public class LogoutServlet extends HttpServlet {
@@ -18,7 +17,11 @@ public class LogoutServlet extends HttpServlet {
       HttpServletResponse response) throws IOException {
 
     try {
-      WSSecurityHelper.revokeSSOCookies(request, response);
+      Class<?> helperClass = Class.forName("com.ibm.websphere.security.WSSecurityHelper");
+      Method revokeMethod = helperClass.getMethod("revokeSSOCookies", HttpServletRequest.class, HttpServletResponse.class);
+      revokeMethod.invoke(null, request, response);
+    } catch (ClassNotFoundException e) {
+      // WebSphere not available - skip SSO cookie revocation
     } catch (Exception e) {
       System.err.println("[ERROR] Error logging out");
       e.printStackTrace();

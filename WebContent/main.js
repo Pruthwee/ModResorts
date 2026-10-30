@@ -115,6 +115,7 @@ var fromObject;
 
 selectCity.addEventListener("change", function(e){
     container.classList.remove("is-selected");
+    callRESTAPI();
 });
 
 
@@ -344,3 +345,12 @@ function callAvailabilityChecker(dateObj, elem) {
     request.send();
 }
 window.callAvailabilityChecker = callAvailabilityChecker;
+
+document.addEventListener("DOMContentLoaded", function() {
+    var reserveBtn = document.getElementById("reserve-btn");
+    if (reserveBtn) {
+        reserveBtn.addEventListener("click", function() {
+            confirmReservcation();
+        });
+    }
+});
