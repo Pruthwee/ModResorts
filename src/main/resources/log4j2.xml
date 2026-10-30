@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+  <Appenders>
+    <Console name="Console" target="SYSTEM_OUT">
+      <PatternLayout pattern="%d{ISO8601} %-5level %logger{36} - %msg%n"/>
+    </Console>
+  </Appenders>
+  <Loggers>
+    <!-- Azure SDK wire and request logging can contain secrets: keep it at WARN -->
+    <Logger name="com.azure" level="WARN"/>
+    <Logger name="com.azure.core.http.policy.HttpLoggingPolicy" level="WARN"/>
+    <Logger name="reactor.netty" level="WARN"/>
+    <Logger name="io.netty" level="WARN"/>
+    <Logger name="com.microsoft.aad.msal4j" level="WARN"/>
+    <Logger name="org.apache.http.wire" level="WARN"/>
+    <Logger name="org.apache.http.headers" level="WARN"/>
+    <Root level="INFO">
+      <AppenderRef ref="Console"/>
+    </Root>
+  </Loggers>
+</Configuration>
