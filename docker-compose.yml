@@ -1,0 +1,18 @@
+version: "3.8"
+services:
+  modresorts:
+    image: modresorts:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
+      - WEATHER_API_KEY=${WEATHER_API_KEY:?set WEATHER_API_KEY}
+      - DB_HOST=${DB_HOST:?set DB_HOST}
+      - DB_PORT=${DB_PORT:?set DB_PORT}
+      - DB_NAME=${DB_NAME:?set DB_NAME}
+      - DB_USER=${DB_USER:?set DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD:?set DB_PASSWORD}
+    volumes:
+      - ./WebContent:/app/WebContent:ro
+      - ./src/main/resources:/app/src/main/resources:ro
