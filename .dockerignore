@@ -1,0 +1,15 @@
+target/
+.git/
+*.md
+mvnw
+mvnw.cmd
+.mvn/
+gradlew
+gradlew.bat
+gradle/wrapper/
+.gradle/
+.idea/
+.vscode/
+*.iml
+.DS_Store
+build/

@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  modresorts:
+    image: modresorts:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - WEATHER_API_KEY=${WEATHER_API_KEY:?set WEATHER_API_KEY}
+      - JNDI_FACTORY_INITIAL=${JNDI_FACTORY_INITIAL}
+      - JNDI_PROVIDER_URL=${JNDI_PROVIDER_URL}
+      - SERVER_DISPLAY_NAME=${SERVER_DISPLAY_NAME}
+      - SERVER_FULL_NAME=${SERVER_FULL_NAME}
+    volumes:
+      - ./target/classes/static:/app/static
+      - ./src/main/resources:/app/config

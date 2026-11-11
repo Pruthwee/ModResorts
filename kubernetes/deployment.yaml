@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: modresorts
+  namespace: "{{NAMESPACE}}"
+  labels:
+    app: modresorts
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: modresorts
+  template:
+    metadata:
+      labels:
+        app: modresorts
+    spec:
+      containers:
+        - name: modresorts
+          image: "{{IMAGE_URI}}"
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: WEATHER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: modresorts-secrets
+                  key: weather-api-key
+            - name: JNDI_FACTORY_INITIAL
+              value: "{{JNDI_FACTORY_INITIAL}}"
+            - name: JNDI_PROVIDER_URL
+              value: "{{JNDI_PROVIDER_URL}}"
+            - name: SERVER_DISPLAY_NAME
+              value: "{{SERVER_DISPLAY_NAME}}"
+            - name: SERVER_FULL_NAME
+              value: "{{SERVER_FULL_NAME}}"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
