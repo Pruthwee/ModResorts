@@ -26,11 +26,6 @@ body {
   margin: 0;
 }
 
-.h2 {
-  font-size: 33px;
-  text-align: center;
-}
-
 .h5 {
   width: 100%;
   text-align: right;
@@ -57,7 +52,8 @@ body {
   background: #000;
   color: #fff;
   z-index: 1;
-} */
+}
+
 .header {
   position: fixed;
   top: 0;
@@ -78,7 +74,7 @@ body {
   display: flex;
   justify-content: flex-start;
   align-items: center;
-} */
+}
 
 .header--left-container {
   width: 400px;
