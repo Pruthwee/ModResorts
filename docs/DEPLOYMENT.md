@@ -41,10 +41,8 @@ The application reads the following environment variables:
 |----------|-------------|----------|
 | `SPRING_PROFILES_ACTIVE` | Spring profile to activate (default: prod) | No |
 | `WEATHER_API_KEY` | API key for weather data (stored in Kubernetes Secret) | Yes |
-| `JNDI_FACTORY_INITIAL` | JNDI factory class for directory service | No |
-| `JNDI_PROVIDER_URL` | JNDI provider URL | No |
-| `SERVER_DISPLAY_NAME` | Server display name (replaces WebSphere ServerName) | No |
-| `SERVER_FULL_NAME` | Server full name (replaces WebSphere ServerName) | No |
+| `SERVER_DISPLAY_NAME` | Server display name | No |
+| `SERVER_FULL_NAME` | Server full name | No |
 
 ## Building and Pushing the Container Image
 
@@ -78,6 +76,7 @@ docker build -f Dockerfile -t <registry>/<repo>:<tag> .
 
 The build uses a multi-stage Dockerfile:
 - **Build stage**: `maven:3.9.4-eclipse-temurin-8` builds the JAR with Maven
+- **PurgeCSS stage**: `node:18-alpine` runs PurgeCSS to strip unused CSS from `src/main/resources/static/styles.css` before the JAR is packaged
 - **Runtime stage**: `eclipse-temurin:8-jre` runs the JAR with a non-root user
 
 ## AWS EKS Deployment

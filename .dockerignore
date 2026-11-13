@@ -13,3 +13,5 @@ gradle/wrapper/
 *.iml
 .DS_Store
 build/
+WebContent/
+migration-bundle/

@@ -28,10 +28,6 @@ spec:
                 secretKeyRef:
                   name: modresorts-secrets
                   key: weather-api-key
-            - name: JNDI_FACTORY_INITIAL
-              value: "{{JNDI_FACTORY_INITIAL}}"
-            - name: JNDI_PROVIDER_URL
-              value: "{{JNDI_PROVIDER_URL}}"
             - name: SERVER_DISPLAY_NAME
               value: "{{SERVER_DISPLAY_NAME}}"
             - name: SERVER_FULL_NAME

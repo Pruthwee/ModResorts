@@ -22,8 +22,6 @@ echo "Enter environment variable values for the deployment."
 echo "Press Enter to skip any variable (it will remain as a placeholder)."
 echo ""
 
-read -p "Enter value for JNDI_FACTORY_INITIAL (or press Enter to skip): " JNDI_FACTORY_INITIAL
-read -p "Enter value for JNDI_PROVIDER_URL (or press Enter to skip): " JNDI_PROVIDER_URL
 read -p "Enter value for SERVER_DISPLAY_NAME (or press Enter to skip): " SERVER_DISPLAY_NAME
 read -p "Enter value for SERVER_FULL_NAME (or press Enter to skip): " SERVER_FULL_NAME
 
@@ -61,8 +59,6 @@ echo ""
 echo "Preparing deployment.yaml..."
 sed -i.bak 's|{{NAMESPACE}}|'$IMAGE_NAME'|g' kubernetes/deployment.yaml
 sed -i.bak 's|{{IMAGE_URI}}|'$IMAGE_URI'|g' kubernetes/deployment.yaml
-sed -i.bak 's|{{JNDI_FACTORY_INITIAL}}|'$JNDI_FACTORY_INITIAL'|g' kubernetes/deployment.yaml
-sed -i.bak 's|{{JNDI_PROVIDER_URL}}|'$JNDI_PROVIDER_URL'|g' kubernetes/deployment.yaml
 sed -i.bak 's|{{SERVER_DISPLAY_NAME}}|'$SERVER_DISPLAY_NAME'|g' kubernetes/deployment.yaml
 sed -i.bak 's|{{SERVER_FULL_NAME}}|'$SERVER_FULL_NAME'|g' kubernetes/deployment.yaml
 rm -f kubernetes/deployment.yaml.bak

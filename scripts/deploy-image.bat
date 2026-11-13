@@ -24,8 +24,6 @@ echo Enter environment variable values for the deployment.
 echo Press Enter to skip any variable (it will remain as a placeholder).
 echo.
 
-set /p JNDI_FACTORY_INITIAL="Enter value for JNDI_FACTORY_INITIAL (or press Enter to skip): "
-set /p JNDI_PROVIDER_URL="Enter value for JNDI_PROVIDER_URL (or press Enter to skip): "
 set /p SERVER_DISPLAY_NAME="Enter value for SERVER_DISPLAY_NAME (or press Enter to skip): "
 set /p SERVER_FULL_NAME="Enter value for SERVER_FULL_NAME (or press Enter to skip): "
 
@@ -71,7 +69,7 @@ if !ERRORLEVEL! neq 0 (
 REM Prepare deployment.yaml with placeholder replacements
 echo.
 echo Preparing deployment.yaml...
-call powershell -Command "(gc kubernetes/deployment.yaml) -replace '{{NAMESPACE}}', '!IMAGE_NAME!' -replace '{{IMAGE_URI}}', '!IMAGE_URI!' -replace '{{JNDI_FACTORY_INITIAL}}', '!JNDI_FACTORY_INITIAL!' -replace '{{JNDI_PROVIDER_URL}}', '!JNDI_PROVIDER_URL!' -replace '{{SERVER_DISPLAY_NAME}}', '!SERVER_DISPLAY_NAME!' -replace '{{SERVER_FULL_NAME}}', '!SERVER_FULL_NAME!' | Out-File -encoding ASCII kubernetes/deployment.yaml"
+call powershell -Command "(gc kubernetes/deployment.yaml) -replace '{{NAMESPACE}}', '!IMAGE_NAME!' -replace '{{IMAGE_URI}}', '!IMAGE_URI!' -replace '{{SERVER_DISPLAY_NAME}}', '!SERVER_DISPLAY_NAME!' -replace '{{SERVER_FULL_NAME}}', '!SERVER_FULL_NAME!' | Out-File -encoding ASCII kubernetes/deployment.yaml"
 
 REM Apply deployment
 echo.
