@@ -35,6 +35,14 @@
     <servlet-name>UpperServlet</servlet-name>
     <url-pattern>/upper</url-pattern>
   </servlet-mapping>
+  <servlet>
+    <servlet-name>HealthServlet</servlet-name>
+    <servlet-class>com.acme.modres.HealthServlet</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>HealthServlet</servlet-name>
+    <url-pattern>/health</url-pattern>
+  </servlet-mapping>
   <filter>
 	<filter-name>FirstFilter</filter-name>
 	<filter-class>com.acme.modres.FirstFilter</filter-class>

@@ -23,7 +23,7 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import javax.inject.Inject;
+
 import javax.management.InstanceAlreadyExistsException;
 import javax.management.InstanceNotFoundException;
 import javax.management.IntrospectionException;
@@ -43,8 +43,7 @@ import javax.servlet.annotation.WebServlet;
 public class WeatherServlet extends HttpServlet {
   private static final long serialVersionUID = 1L;
 
-  @Inject
-  private ModResortsCustomerInformation customerInfo;
+  private ModResortsCustomerInformation customerInfo = new ModResortsCustomerInformation();
 
   // local OS environment variable key name. The key value should provide an API
   // key that will be used to
@@ -253,8 +252,8 @@ public class WeatherServlet extends HttpServlet {
 
     String serverEnv = "";
 
-    serverEnv += com.ibm.websphere.runtime.ServerName.getDisplayName();
-    serverEnv += com.ibm.websphere.runtime.ServerName.getFullName();
+    serverEnv += System.getProperty("server.name", "default-server");
+    serverEnv += System.getProperty("server.profile", "default-profile");
 
     return serverEnv;
   }
@@ -263,8 +262,8 @@ public class WeatherServlet extends HttpServlet {
 
     Hashtable ht = new Hashtable();
 
-    ht.put("java.naming.factory.initial", "com.ibm.websphere.naming.WsnInitialContextFactory");
-    ht.put("java.naming.provider.url", "corbaloc:iiop:localhost:2809");
+    ht.put("java.naming.factory.initial", "com.sun.jndi.fs.FileSystemContextFactory");
+    ht.put("java.naming.provider.url", System.getenv().getOrDefault("NAMING_PROVIDER_URL", "file:///"));
 
     InitialContext ctx = null;
     try {
